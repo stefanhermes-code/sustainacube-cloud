@@ -1038,7 +1038,16 @@ def main():
                 mime="text/plain",
                 key="download_text"
             )
-            # Sources section removed for corporate version
+            # Sources section for internal version
+            if sources:
+                st.markdown("### 📚 Sources")
+                for source in sources:
+                    src_name = source.get('filename') if isinstance(source, dict) else str(source)
+                    score = source.get('similarity_score') if isinstance(source, dict) else None
+                    if isinstance(score, (int, float)):
+                        st.markdown(f"• **{src_name}** (Relevance: {score:.3f})")
+                    else:
+                        st.markdown(f"• **{src_name}**")
 
         if st.button("🔍 Get Answer", type="primary"):
             if question.strip():
@@ -1052,9 +1061,6 @@ def main():
             st.session_state.auto_run = False
     
     with col2:
-        # Right column content can be added here if needed
-        pass
-        
         st.markdown("---")
         st.markdown("### 🤖 Assistant")
         use_assistant = st.checkbox("Use OpenAI Assistant (Vector Store)", value=bool(st.session_state.rag_system.assistant_id))
