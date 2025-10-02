@@ -445,22 +445,61 @@ Answer:"""
             self.lock_file.unlink()
 
 def check_password():
-    """Simple password check for corporate access"""
+    """Check if user is authenticated using corporate user management"""
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
+    if 'current_corporate_user' not in st.session_state:
+        st.session_state.current_corporate_user = None
+    
+    # Load corporate users from JSON file
+    users_file = Path(__file__).parent / "corporate_users.json"
+    usage_file = Path(__file__).parent / "user_usage.json"
+    
+    corporate_users = {}
+    user_usage = {}
+    
+    if users_file.exists():
+        try:
+            with open(users_file, 'r', encoding='utf-8') as f:
+                corporate_users = json.load(f)
+        except Exception:
+            pass
+    
+    if usage_file.exists():
+        try:
+            with open(usage_file, 'r', encoding='utf-8') as f:
+                user_usage = json.load(f)
+        except Exception:
+            pass
     
     if not st.session_state.authenticated:
         st.title("🔐 Corporate Access")
-        st.markdown("Please enter the corporate password to access SustainaCube.")
+        st.markdown("Please enter your corporate credentials to access SustainaCube.")
         
-        password = st.text_input("Password", type="password")
-        if st.button("Login"):
-            # Add your corporate password here
-            if password == "SustainaCube2024":  # Change this to your desired password
-                st.session_state.authenticated = True
-                st.rerun()
-            else:
-                st.error("Incorrect password. Please try again.")
+        with st.form("corporate_login"):
+            email = st.text_input("Email Address", placeholder="user@company.com")
+            password = st.text_input("Password", type="password")
+            
+            if st.form_submit_button("Login"):
+                if email and password:
+                    user_id = email.lower()
+                    if (user_id in corporate_users and 
+                        corporate_users[user_id]['password'] == password):
+                        # Check if user is still valid
+                        valid_until = datetime.strptime(corporate_users[user_id]['valid_until'], '%d/%m/%Y').date()
+                        if valid_until >= datetime.now().date():
+                            st.session_state.authenticated = True
+                            st.session_state.current_corporate_user = user_id
+                            st.session_state.corporate_users = corporate_users
+                            st.session_state.user_usage = user_usage
+                            st.success(f"Welcome, {email}!")
+                            st.rerun()
+                        else:
+                            st.error("Your account has expired. Please contact your administrator.")
+                    else:
+                        st.error("Invalid email or password. Please try again.")
+                else:
+                    st.error("Please enter both email and password.")
         return False
     return True
 
@@ -486,6 +525,18 @@ def main():
         st.title("SustainaCube: Sustainability ExpertCenter")
     
     st.markdown("Ask questions about sustainability, recycling, and environmental research in the Polyurethane Industry.")
+    
+    # Show current user info and logout
+    if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
+        user_data = st.session_state.corporate_users[st.session_state.current_corporate_user]
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.info(f"👤 Logged in as: **{user_data['email']}** | Valid until: {user_data['valid_until']}")
+        with col2:
+            if st.button("🚪 Logout"):
+                st.session_state.authenticated = False
+                st.session_state.current_corporate_user = None
+                st.rerun()
     
     # Initialize RAG system
     if 'rag_system' not in st.session_state:
@@ -520,6 +571,25 @@ def main():
         def run_query(q: str):
             with st.spinner("Searching knowledge base and generating answer..."):
                 answer, sources = st.session_state.rag_system.answer_question(q)
+            
+            # Track usage for corporate users
+            if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
+                user_id = st.session_state.current_corporate_user.lower()
+                if 'user_usage' in st.session_state and user_id in st.session_state.user_usage:
+                    st.session_state.user_usage[user_id]['questions_asked'] += 1
+                    st.session_state.user_usage[user_id]['last_used'] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    # Estimate cost (you can adjust this based on your pricing model)
+                    estimated_cost = 0.10  # $0.10 per question
+                    st.session_state.user_usage[user_id]['total_cost'] += estimated_cost
+                    
+                    # Save usage data to persistent storage
+                    try:
+                        usage_file = Path(__file__).parent / "user_usage.json"
+                        with open(usage_file, 'w', encoding='utf-8') as f:
+                            json.dump(st.session_state.user_usage, f, indent=2)
+                    except Exception as e:
+                        st.error(f"Error saving usage data: {e}")
+            
             st.markdown("### 📋 Answer")
             st.markdown(answer)
             
