@@ -841,12 +841,125 @@ def main():
             st.metric("Files Processed", 0)
             if total_available > 0:
                 st.metric("New Files", total_available)
+        
+        st.markdown("---")
+        st.markdown("### 👥 User Management")
+        
+        # Initialize user management data
+        if 'corporate_users' not in st.session_state:
+            st.session_state.corporate_users = {}
+        if 'user_usage' not in st.session_state:
+            st.session_state.user_usage = {}
+        
+        # Add new user form
+        with st.expander("➕ Add Corporate User"):
+            with st.form("add_user_form"):
+                email = st.text_input("Email Address", placeholder="user@company.com")
+                password = st.text_input("Password", type="password")
+                valid_until = st.date_input("Valid Until")
+                
+                if st.form_submit_button("Add User"):
+                    if email and password and valid_until:
+                        user_id = email.lower()
+                        st.session_state.corporate_users[user_id] = {
+                            'email': email,
+                            'password': password,
+                            'valid_until': valid_until.strftime('%d/%m/%Y'),
+                            'created': datetime.now().strftime('%d/%m/%Y %H:%M'),
+                            'status': 'Active' if valid_until >= datetime.now().date() else 'Expired'
+                        }
+                        st.session_state.user_usage[user_id] = {
+                            'questions_asked': 0,
+                            'last_used': None,
+                            'total_cost': 0.0
+                        }
+                        st.success(f"User {email} added successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Please fill in all fields")
+        
+        # User list and management
+        if st.session_state.corporate_users:
+            st.markdown("#### 📋 Corporate Users")
+            
+            for user_id, user_data in st.session_state.corporate_users.items():
+                # Check if user is expired
+                valid_until = datetime.strptime(user_data['valid_until'], '%d/%m/%Y').date()
+                if valid_until < datetime.now().date():
+                    user_data['status'] = 'Expired'
+                
+                # Display user info
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    status_color = "🟢" if user_data['status'] == 'Active' else "🔴"
+                    st.write(f"{status_color} **{user_data['email']}**")
+                    st.caption(f"Valid until: {user_data['valid_until']}")
+                    if user_id in st.session_state.user_usage:
+                        usage = st.session_state.user_usage[user_id]
+                        st.caption(f"Questions: {usage['questions_asked']} | Cost: ${usage['total_cost']:.2f}")
+                
+                with col2:
+                    if st.button("🗑️", key=f"delete_{user_id}", help="Delete user"):
+                        del st.session_state.corporate_users[user_id]
+                        if user_id in st.session_state.user_usage:
+                            del st.session_state.user_usage[user_id]
+                        st.rerun()
+            
+            # Usage statistics
+            st.markdown("#### 📊 Usage Statistics")
+            total_questions = sum(usage['questions_asked'] for usage in st.session_state.user_usage.values())
+            total_cost = sum(usage['total_cost'] for usage in st.session_state.user_usage.values())
+            active_users = sum(1 for user in st.session_state.corporate_users.values() if user['status'] == 'Active')
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Active Users", active_users)
+            with col2:
+                st.metric("Total Questions", total_questions)
+            with col3:
+                st.metric("Total Cost", f"${total_cost:.2f}")
+        else:
+            st.info("No corporate users added yet")
     
     # Main interface
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.header("💬 Ask a Question")
+        
+        # Corporate user login (optional)
+        if 'corporate_users' in st.session_state and st.session_state.corporate_users:
+            with st.expander("🔐 Corporate User Login (Optional)"):
+                login_email = st.text_input("Email", placeholder="user@company.com")
+                login_password = st.text_input("Password", type="password")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Login"):
+                        user_id = login_email.lower()
+                        if (user_id in st.session_state.corporate_users and 
+                            st.session_state.corporate_users[user_id]['password'] == login_password):
+                            # Check if user is still valid
+                            valid_until = datetime.strptime(st.session_state.corporate_users[user_id]['valid_until'], '%d/%m/%Y').date()
+                            if valid_until >= datetime.now().date():
+                                st.session_state.current_corporate_user = user_id
+                                st.success(f"Logged in as {login_email}")
+                                st.rerun()
+                            else:
+                                st.error("User account has expired")
+                        else:
+                            st.error("Invalid email or password")
+                
+                with col2:
+                    if st.button("Logout"):
+                        st.session_state.current_corporate_user = None
+                        st.success("Logged out")
+                        st.rerun()
+                
+                # Show current user status
+                if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
+                    user_data = st.session_state.corporate_users[st.session_state.current_corporate_user]
+                    st.info(f"Logged in as: {user_data['email']} (Valid until: {user_data['valid_until']})")
         
         # Manage question state
         if 'question_input' not in st.session_state:
@@ -866,6 +979,17 @@ def main():
         def run_query(q: str):
             with st.spinner("Searching knowledge base and generating answer..."):
                 answer, sources = st.session_state.rag_system.answer_question(q)
+            
+            # Track usage for corporate users (if any are logged in)
+            if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
+                user_id = st.session_state.current_corporate_user.lower()
+                if user_id in st.session_state.user_usage:
+                    st.session_state.user_usage[user_id]['questions_asked'] += 1
+                    st.session_state.user_usage[user_id]['last_used'] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    # Estimate cost (you can adjust this based on your pricing model)
+                    estimated_cost = 0.10  # $0.10 per question
+                    st.session_state.user_usage[user_id]['total_cost'] += estimated_cost
+            
             st.markdown("### 📋 Answer")
             st.markdown(answer)
             # Convert markdown to HTML and provide professional styling
