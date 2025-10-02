@@ -909,10 +909,10 @@ def main():
         
         # Add new user form
         with st.expander("➕ Add Corporate User"):
-            with st.form("add_user_form"):
-                email = st.text_input("Email Address", placeholder="user@company.com")
-                password = st.text_input("Password", type="password")
-                valid_until = st.date_input("Valid Until")
+            with st.form("add_user_form", clear_on_submit=True):
+                email = st.text_input("Email Address", placeholder="user@company.com", key="add_email")
+                password = st.text_input("Password", type="password", key="add_password")
+                valid_until = st.date_input("Valid Until", key="add_valid_until")
                 
                 if st.form_submit_button("Add User"):
                     if email and password and valid_until:
@@ -984,40 +984,6 @@ def main():
     
     with col1:
         st.header("💬 Ask a Question")
-        
-        # Corporate user login (optional)
-        if 'corporate_users' in st.session_state and st.session_state.corporate_users:
-            with st.expander("🔐 Corporate User Login (Optional)"):
-                login_email = st.text_input("Email", placeholder="user@company.com")
-                login_password = st.text_input("Password", type="password")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Login"):
-                        user_id = login_email.lower()
-                        if (user_id in st.session_state.corporate_users and 
-                            st.session_state.corporate_users[user_id]['password'] == login_password):
-                            # Check if user is still valid
-                            valid_until = datetime.strptime(st.session_state.corporate_users[user_id]['valid_until'], '%d/%m/%Y').date()
-                            if valid_until >= datetime.now().date():
-                                st.session_state.current_corporate_user = user_id
-                                st.success(f"Logged in as {login_email}")
-                                st.rerun()
-                            else:
-                                st.error("User account has expired")
-                        else:
-                            st.error("Invalid email or password")
-                
-                with col2:
-                    if st.button("Logout"):
-                        st.session_state.current_corporate_user = None
-                        st.success("Logged out")
-                        st.rerun()
-                
-                # Show current user status
-                if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
-                    user_data = st.session_state.corporate_users[st.session_state.current_corporate_user]
-                    st.info(f"Logged in as: {user_data['email']} (Valid until: {user_data['valid_until']})")
         
         # Manage question state
         if 'question_input' not in st.session_state:
