@@ -667,6 +667,21 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    # Custom CSS to make sidebar wider
+    st.markdown("""
+    <style>
+    .css-1d391kg {
+        width: 400px !important;
+    }
+    .css-1lcbmhc .css-1d391kg {
+        width: 400px !important;
+    }
+    .sidebar .sidebar-content {
+        width: 400px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Header with logo
     col1, col2 = st.columns([1, 4])
     with col1:
