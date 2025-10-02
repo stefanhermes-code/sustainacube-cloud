@@ -871,11 +871,41 @@ def main():
         st.markdown("---")
         st.markdown("### 👥 User Management")
         
-        # Initialize user management data
+        # Initialize user management data with persistent storage
         if 'corporate_users' not in st.session_state:
             st.session_state.corporate_users = {}
         if 'user_usage' not in st.session_state:
             st.session_state.user_usage = {}
+        
+        # Load users from persistent storage
+        users_file = Path(__file__).parent / "corporate_users.json"
+        usage_file = Path(__file__).parent / "user_usage.json"
+        
+        # Load corporate users
+        if users_file.exists() and not st.session_state.corporate_users:
+            try:
+                with open(users_file, 'r', encoding='utf-8') as f:
+                    st.session_state.corporate_users = json.load(f)
+            except Exception as e:
+                st.error(f"Error loading users: {e}")
+        
+        # Load usage data
+        if usage_file.exists() and not st.session_state.user_usage:
+            try:
+                with open(usage_file, 'r', encoding='utf-8') as f:
+                    st.session_state.user_usage = json.load(f)
+            except Exception as e:
+                st.error(f"Error loading usage data: {e}")
+        
+        # Save users to persistent storage whenever they change
+        def save_users():
+            try:
+                with open(users_file, 'w', encoding='utf-8') as f:
+                    json.dump(st.session_state.corporate_users, f, indent=2)
+                with open(usage_file, 'w', encoding='utf-8') as f:
+                    json.dump(st.session_state.user_usage, f, indent=2)
+            except Exception as e:
+                st.error(f"Error saving data: {e}")
         
         # Add new user form
         with st.expander("➕ Add Corporate User"):
@@ -899,6 +929,7 @@ def main():
                             'last_used': None,
                             'total_cost': 0.0
                         }
+                        save_users()  # Save to persistent storage
                         st.success(f"User {email} added successfully!")
                         st.rerun()
                     else:
@@ -929,6 +960,7 @@ def main():
                         del st.session_state.corporate_users[user_id]
                         if user_id in st.session_state.user_usage:
                             del st.session_state.user_usage[user_id]
+                        save_users()  # Save to persistent storage
                         st.rerun()
             
             # Usage statistics
@@ -1015,6 +1047,13 @@ def main():
                     # Estimate cost (you can adjust this based on your pricing model)
                     estimated_cost = 0.10  # $0.10 per question
                     st.session_state.user_usage[user_id]['total_cost'] += estimated_cost
+                    # Save usage data to persistent storage
+                    try:
+                        usage_file = Path(__file__).parent / "user_usage.json"
+                        with open(usage_file, 'w', encoding='utf-8') as f:
+                            json.dump(st.session_state.user_usage, f, indent=2)
+                    except Exception as e:
+                        st.error(f"Error saving usage data: {e}")
             
             st.markdown("### 📋 Answer")
             st.markdown(answer)
