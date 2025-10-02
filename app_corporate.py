@@ -20,14 +20,17 @@ class SustainaCubeMinimal:
         # Try Streamlit secrets first, fallback to environment variables
         try:
             api_key = st.secrets["OPENAI_API_KEY"]
+            assistant_id = st.secrets.get("OPENAI_ASSISTANT_ID", "")
         except:
             # Fallback to environment variables for local development
             api_key = os.getenv("OPENAI_API_KEY")
+            assistant_id = os.getenv("OPENAI_ASSISTANT_ID", "")
         
         self.openai_client = openai.OpenAI(api_key=api_key)
         self.documents = []
         self.processed = False
-        # Assistant API disabled for corporate version
+        # Assistant (OpenAI Assistants API)
+        self.assistant_id = assistant_id
         # Resume/cache/tracking
         self.cache_path = Path(__file__).parent / "processed_cache.json"
         self.chunks_store_path = Path(__file__).parent / "chunks_store.jsonl"
@@ -301,8 +304,8 @@ class SustainaCubeMinimal:
         if not self.processed or not self.documents:
             return "No documents have been processed yet. Please process some documents first.", []
         
-        # Search for relevant documents
-        search_results = self.search_documents(question)
+        # Search for relevant documents (limit to top 3 for corporate version)
+        search_results = self.search_documents(question, top_k=3)
         
         if not search_results:
             return "No relevant information found in the knowledge base.", []
@@ -320,7 +323,24 @@ class SustainaCubeMinimal:
 
     def generate_answer(self, question, search_results):
         """Generate an answer based on search results"""
-        context = "\n\n".join([result['text'] for result in search_results])
+        # Limit context to avoid token limit (roughly 3000 characters max)
+        context_parts = []
+        total_length = 0
+        max_length = 3000
+        
+        for result in search_results:
+            text = result['text']
+            if total_length + len(text) < max_length:
+                context_parts.append(text)
+                total_length += len(text)
+            else:
+                # Add partial text if there's room
+                remaining = max_length - total_length
+                if remaining > 100:  # Only add if there's meaningful space
+                    context_parts.append(text[:remaining] + "...")
+                break
+        
+        context = "\n\n".join(context_parts)
         
         prompt = f"""Based on the following context about sustainability in the polyurethane industry, answer the question: {question}
 
