@@ -77,6 +77,49 @@ class GoogleSheetsUserManager:
                 redirect_uri=creds_info["redirect_uris"][0]
             )
             
+            # Try to complete the OAuth callback if Google redirected back with ?code=
+            try:
+                # Streamlit newer API
+                qp = st.query_params if hasattr(st, "query_params") else st.experimental_get_query_params()
+                code = None
+                if isinstance(qp, dict):
+                    # experimental_get_query_params returns Dict[str, List[str]]
+                    code_val = qp.get("code")
+                    code = code_val[0] if isinstance(code_val, list) and code_val else qp.get("code")
+                else:
+                    # st.query_params returns Mapping
+                    code = qp.get("code")
+            except Exception:
+                code = None
+
+            if code:
+                try:
+                    flow.fetch_token(code=code)
+                    creds = flow.credentials
+                    # Persist credentials in session state
+                    st.session_state.google_credentials = {
+                        "token": creds.token,
+                        "refresh_token": getattr(creds, "refresh_token", None),
+                        "token_uri": creds.token_uri,
+                        "client_id": creds.client_id,
+                        "client_secret": creds.client_secret,
+                        "scopes": creds.scopes,
+                    }
+                    self.client = gspread.authorize(creds)
+
+                    # Clear query params so we don't reprocess the code on rerun
+                    try:
+                        if hasattr(st, "query_params"):
+                            st.query_params.clear()
+                        else:
+                            st.experimental_set_query_params()
+                    except Exception:
+                        pass
+                    return True
+                except Exception as e:
+                    st.error(f"OAuth exchange failed: {e}")
+                    return False
+
             # Generate authorization URL
             auth_url, _ = flow.authorization_url(prompt='consent')
             
