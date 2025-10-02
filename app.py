@@ -719,12 +719,12 @@ def main():
     elif processing_user == current_user:
         st.success(f"✅ You ({current_user}) are currently processing documents")
     
-    # Sidebar for document processing and statistics (hidden for corporate version)
-    # with st.sidebar:
-    #     st.header("📚 Document Management")
-    #     
-    #     # Check for new files first
-    #     new_files_count = st.session_state.rag_system.check_for_new_files("./Document Database")
+    # Sidebar for document processing and statistics
+    with st.sidebar:
+        st.header("📚 Document Management")
+        
+        # Check for new files first
+        new_files_count = st.session_state.rag_system.check_for_new_files("./Document Database")
         
         # Calculate actual new files based on current stats
         if st.session_state.rag_system.processed:
