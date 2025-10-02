@@ -517,18 +517,16 @@ def main():
     with col2:
         st.title("SustainaCube - Corporate Version")
     
-    # Display current user info
-    if 'current_user' in st.session_state and st.session_state.current_user:
-        st.info(f"👤 Logged in as: **{st.session_state.current_user}**")
-    
+    # Top bar: right-aligned logout button (no "logged in as" text)
+    top_left, top_right = st.columns([6, 1])
+    with top_right:
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state.authenticated = False
+            if 'current_user' in st.session_state:
+                del st.session_state.current_user
+            st.rerun()
+
     st.markdown("Ask questions about sustainability, recycling, and environmental research in the Polyurethane Industry.")
-    
-    # Logout button
-    if st.button("🚪 Logout"):
-        st.session_state.authenticated = False
-        if 'current_user' in st.session_state:
-            del st.session_state.current_user
-        st.rerun()
     
     # Initialize RAG system
     if 'rag_system' not in st.session_state:
