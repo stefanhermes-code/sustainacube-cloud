@@ -671,13 +671,24 @@ def main():
     st.markdown("""
     <style>
     .css-1d391kg {
-        width: 400px !important;
+        width: 500px !important;
+        max-width: 500px !important;
     }
     .css-1lcbmhc .css-1d391kg {
-        width: 400px !important;
+        width: 500px !important;
+        max-width: 500px !important;
     }
     .sidebar .sidebar-content {
-        width: 400px !important;
+        width: 500px !important;
+        max-width: 500px !important;
+    }
+    [data-testid="stSidebar"] {
+        width: 500px !important;
+        min-width: 500px !important;
+    }
+    [data-testid="stSidebar"] > div {
+        width: 500px !important;
+        min-width: 500px !important;
     }
     </style>
     """, unsafe_allow_html=True)
