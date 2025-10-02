@@ -445,37 +445,20 @@ Answer:"""
             self.lock_file.unlink()
 
 def check_password():
-    """Check if user is authenticated using corporate user management"""
+    """User authentication using corporate user database"""
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-    if 'current_corporate_user' not in st.session_state:
-        st.session_state.current_corporate_user = None
     
-    # Load corporate users from JSON file
+    # Load corporate users from the same file as internal app
     users_file = Path(__file__).parent / "corporate_users.json"
-    usage_file = Path(__file__).parent / "user_usage.json"
-    
     corporate_users = {}
-    user_usage = {}
-    
-    # Debug: show file paths
-    st.write(f"Looking for users file at: {users_file}")
-    st.write(f"File exists: {users_file.exists()}")
     
     if users_file.exists():
         try:
             with open(users_file, 'r', encoding='utf-8') as f:
                 corporate_users = json.load(f)
-                st.write(f"Loaded {len(corporate_users)} users")
         except Exception as e:
             st.error(f"Error loading users: {e}")
-    
-    if usage_file.exists():
-        try:
-            with open(usage_file, 'r', encoding='utf-8') as f:
-                user_usage = json.load(f)
-        except Exception as e:
-            st.error(f"Error loading usage: {e}")
     
     if not st.session_state.authenticated:
         # Header with logo for login screen
@@ -490,30 +473,30 @@ def check_password():
         
         st.markdown("Please enter your corporate credentials to access SustainaCube.")
         
-        with st.form("corporate_login"):
-            email = st.text_input("Email Address", placeholder="user@company.com")
-            password = st.text_input("Password", type="password")
-            
-            if st.form_submit_button("Login"):
-                if email and password:
-                    user_id = email.lower()
-                    if (user_id in corporate_users and 
-                        corporate_users[user_id]['password'] == password):
+        email = st.text_input("Email Address", placeholder="user@company.com")
+        password = st.text_input("Password", type="password")
+        
+        if st.button("Login"):
+            if email and password:
+                user_id = email.lower()
+                if user_id in corporate_users:
+                    user_data = corporate_users[user_id]
+                    # Check if password matches and user is not expired
+                    if user_data['password'] == password:
                         # Check if user is still valid
-                        valid_until = datetime.strptime(corporate_users[user_id]['valid_until'], '%d/%m/%Y').date()
+                        valid_until = datetime.strptime(user_data['valid_until'], '%d/%m/%Y').date()
                         if valid_until >= datetime.now().date():
                             st.session_state.authenticated = True
-                            st.session_state.current_corporate_user = user_id
-                            st.session_state.corporate_users = corporate_users
-                            st.session_state.user_usage = user_usage
-                            st.success(f"Welcome, {email}!")
+                            st.session_state.current_user = user_data['email']
                             st.rerun()
                         else:
                             st.error("Your account has expired. Please contact your administrator.")
                     else:
-                        st.error("Invalid email or password. Please try again.")
+                        st.error("Incorrect password. Please try again.")
                 else:
-                    st.error("Please enter both email and password.")
+                    st.error("User not found. Please contact your administrator.")
+            else:
+                st.error("Please enter both email and password.")
         return False
     return True
 
@@ -538,19 +521,18 @@ def main():
     with col2:
         st.title("SustainaCube - Corporate Version")
     
+    # Display current user info
+    if 'current_user' in st.session_state and st.session_state.current_user:
+        st.info(f"👤 Logged in as: **{st.session_state.current_user}**")
+    
     st.markdown("Ask questions about sustainability, recycling, and environmental research in the Polyurethane Industry.")
     
-    # Show current user info and logout
-    if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
-        user_data = st.session_state.corporate_users[st.session_state.current_corporate_user]
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.info(f"👤 Logged in as: **{user_data['email']}** | Valid until: {user_data['valid_until']}")
-        with col2:
-            if st.button("🚪 Logout"):
-                st.session_state.authenticated = False
-                st.session_state.current_corporate_user = None
-                st.rerun()
+    # Logout button
+    if st.button("🚪 Logout"):
+        st.session_state.authenticated = False
+        if 'current_user' in st.session_state:
+            del st.session_state.current_user
+        st.rerun()
     
     # Initialize RAG system
     if 'rag_system' not in st.session_state:
@@ -587,22 +569,39 @@ def main():
                 answer, sources = st.session_state.rag_system.answer_question(q)
             
             # Track usage for corporate users
-            if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
-                user_id = st.session_state.current_corporate_user.lower()
-                if 'user_usage' in st.session_state and user_id in st.session_state.user_usage:
-                    st.session_state.user_usage[user_id]['questions_asked'] += 1
-                    st.session_state.user_usage[user_id]['last_used'] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    # Estimate cost (you can adjust this based on your pricing model)
-                    estimated_cost = 0.10  # $0.10 per question
-                    st.session_state.user_usage[user_id]['total_cost'] += estimated_cost
-                    
-                    # Save usage data to persistent storage
+            if 'current_user' in st.session_state and st.session_state.current_user:
+                user_id = st.session_state.current_user.lower()
+                usage_file = Path(__file__).parent / "user_usage.json"
+                
+                # Load usage data
+                user_usage = {}
+                if usage_file.exists():
                     try:
-                        usage_file = Path(__file__).parent / "user_usage.json"
-                        with open(usage_file, 'w', encoding='utf-8') as f:
-                            json.dump(st.session_state.user_usage, f, indent=2)
+                        with open(usage_file, 'r', encoding='utf-8') as f:
+                            user_usage = json.load(f)
                     except Exception as e:
-                        st.error(f"Error saving usage data: {e}")
+                        st.error(f"Error loading usage data: {e}")
+                
+                # Update usage for current user
+                if user_id not in user_usage:
+                    user_usage[user_id] = {
+                        'questions_asked': 0,
+                        'last_used': None,
+                        'total_cost': 0.0
+                    }
+                
+                user_usage[user_id]['questions_asked'] += 1
+                user_usage[user_id]['last_used'] = datetime.now().strftime('%d/%m/%Y %H:%M')
+                # Estimate cost (you can adjust this based on your pricing model)
+                estimated_cost = 0.10  # $0.10 per question
+                user_usage[user_id]['total_cost'] += estimated_cost
+                
+                # Save usage data to persistent storage
+                try:
+                    with open(usage_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_usage, f, indent=2)
+                except Exception as e:
+                    st.error(f"Error saving usage data: {e}")
             
             st.markdown("### 📋 Answer")
             st.markdown(answer)
