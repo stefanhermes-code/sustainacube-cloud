@@ -10,6 +10,7 @@ from collections import Counter
 import json
 import time
 from datetime import datetime
+from PIL import Image
 
 # Load environment variables
 load_dotenv()
@@ -666,7 +667,16 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    st.title("🌱 SustainaCube: Sustainability ExpertCenter")
+    # Header with logo
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        try:
+            st.image("Logo Carpe Diem 5.png", width=120)
+        except:
+            st.markdown("🌱")  # Fallback if logo not found
+    with col2:
+        st.title("SustainaCube: Sustainability ExpertCenter")
+    
     st.markdown("Ask questions about sustainability, recycling, and environmental research in the Polyurethane Industry")
     
     # Help / User Manual overlay
@@ -714,11 +724,11 @@ def main():
         st.header("📚 Document Management")
         
         # Check for new files first
-        new_files_count = st.session_state.rag_system.check_for_new_files("../Document Database")
+        new_files_count = st.session_state.rag_system.check_for_new_files("./Document Database")
         
         # Calculate actual new files based on current stats
         if st.session_state.rag_system.processed:
-            total_available = len(st.session_state.rag_system._get_document_files("../Document Database"))
+            total_available = len(st.session_state.rag_system._get_document_files("./Document Database"))
             processed_files = len({d.get('file_path') for d in st.session_state.rag_system.documents if d.get('file_path')})
             # Get skipped files from log to exclude them from "new files" count
             skipped_files = st.session_state.rag_system._get_skipped_files()
@@ -744,7 +754,7 @@ def main():
                     else:
                         try:
                             with st.spinner(f"Loading new documents... ({current_user} is processing)"):
-                                st.session_state.rag_system.process_documents("../Document Database")
+                                st.session_state.rag_system.process_documents("./Document Database")
                                 
                                 # Show completion alert
                                 if st.session_state.rag_system.processed:
@@ -768,7 +778,7 @@ def main():
         st.markdown("### 📊 Quick Stats")
         
         # Get total files available in Document Database
-        doc_files = st.session_state.rag_system._get_document_files("../Document Database")
+        doc_files = st.session_state.rag_system._get_document_files("./Document Database")
         total_available = len(doc_files)
         
         # Debug: show file type breakdown
@@ -994,16 +1004,7 @@ def main():
       margin: 10px 0 0 0; 
       line-height: 1.6;
     }}
-    .sources-section {{
-      margin-top: 30px; 
-      padding-top: 20px; 
-      border-top: 2px solid #ecf0f1;
-    }}
-    .sources-section h2 {{
-      color: #7f8c8d; 
-      font-size: 16px; 
-      margin-bottom: 15px;
-    }}
+    /* Sources section CSS removed for corporate version */
   </style>
   <title>SustainaCube Expert Response</title>
 </head>
@@ -1018,10 +1019,7 @@ def main():
       <p class="question-text">{q}</p>
     </div>
     <div class=\"content\">{html_answer}</div>
-    <div class="sources-section">
-      <h2>📚 Sources</h2>
-      {source_list}
-    </div>
+    <!-- Sources section removed for corporate version -->
   </div>
 </body>
 </html>
@@ -1040,18 +1038,7 @@ def main():
                 mime="text/plain",
                 key="download_text"
             )
-            if sources:
-                st.markdown("### 📚 Sources")
-                for source in sources:
-                    name = source.get('filename') if isinstance(source, dict) else str(source)
-                    score = source.get('similarity_score') if isinstance(source, dict) else None
-                    line = f"- **{name}**"
-                    if isinstance(score, (int, float)):
-                        line += f" (Relevance: {score:.3f})"
-                    st.markdown(line)
-                    matched = source.get('matched_words') if isinstance(source, dict) else None
-                    if matched:
-                        st.markdown(f"  *Matched: {', '.join(matched[:5])}...*")
+            # Sources section removed for corporate version
 
         if st.button("🔍 Get Answer", type="primary"):
             if question.strip():
