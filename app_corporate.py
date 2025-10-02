@@ -450,7 +450,7 @@ def check_password():
         st.session_state.authenticated = False
     
     # Import Google Sheets helper
-    from simple_sheets_helper import user_manager
+    from google_sheets_helper import user_manager
     
     # Load corporate users from Google Sheets
     corporate_users = user_manager.get_all_users()
@@ -568,7 +568,7 @@ def main():
                 user_id = st.session_state.current_user.lower()
                 
                 # Import Google Sheets helper
-                from simple_sheets_helper import user_manager
+                from google_sheets_helper import user_manager
                 
                 # Get current usage from Google Sheets
                 users = user_manager.get_all_users()
