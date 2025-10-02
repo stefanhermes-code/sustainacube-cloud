@@ -458,19 +458,24 @@ def check_password():
     corporate_users = {}
     user_usage = {}
     
+    # Debug: show file paths
+    st.write(f"Looking for users file at: {users_file}")
+    st.write(f"File exists: {users_file.exists()}")
+    
     if users_file.exists():
         try:
             with open(users_file, 'r', encoding='utf-8') as f:
                 corporate_users = json.load(f)
-        except Exception:
-            pass
+                st.write(f"Loaded {len(corporate_users)} users")
+        except Exception as e:
+            st.error(f"Error loading users: {e}")
     
     if usage_file.exists():
         try:
             with open(usage_file, 'r', encoding='utf-8') as f:
                 user_usage = json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            st.error(f"Error loading usage: {e}")
     
     if not st.session_state.authenticated:
         # Header with logo for login screen
