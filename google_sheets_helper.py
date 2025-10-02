@@ -53,16 +53,22 @@ class GoogleSheetsUserManager:
                     "redirect_uris": ["https://sustainacube-cloud-5oyba4hbtpwtcbpvevf2vk.streamlit.app"]
                 }
             
+            # Debug: Show what we're working with
+            st.write("Debug - Creds info:", creds_info)
+            
             # Check if we have stored credentials in session state
             if 'google_credentials' in st.session_state and st.session_state.google_credentials:
                 try:
+                    st.write("Debug - Found stored credentials")
                     creds = Credentials.from_authorized_user_info(
                         st.session_state.google_credentials, self.scopes
                     )
                     if creds.valid:
+                        st.write("Debug - Credentials are valid")
                         self.client = gspread.authorize(creds)
                         return True
                     elif creds.expired and creds.refresh_token:
+                        st.write("Debug - Refreshing expired credentials")
                         creds.refresh(Request())
                         st.session_state.google_credentials = creds.to_json()
                         self.client = gspread.authorize(creds)
@@ -70,28 +76,29 @@ class GoogleSheetsUserManager:
                 except Exception as e:
                     st.error(f"Error with stored credentials: {e}")
             
-            # If no valid credentials, start OAuth flow
-            flow = Flow.from_client_config(
-                {"web": creds_info},
-                scopes=self.scopes,
-                redirect_uri=creds_info["redirect_uris"][0]
-            )
-            
-            # Try to complete the OAuth callback if Google redirected back with ?code=
+            # Check for OAuth callback
             try:
-                # Prefer experimental_get_query_params for broad compatibility
                 qp = st.experimental_get_query_params()
+                st.write("Debug - Query params:", qp)
                 code_list = qp.get("code")
-                state_list = qp.get("state")
                 code = code_list[0] if code_list else None
-                _ = state_list[0] if state_list else None
-            except Exception:
+                st.write("Debug - Code found:", code)
+            except Exception as e:
+                st.write("Debug - Error getting query params:", e)
                 code = None
 
             if code:
                 try:
+                    st.write("Debug - Processing OAuth callback")
+                    flow = Flow.from_client_config(
+                        {"web": creds_info},
+                        scopes=self.scopes,
+                        redirect_uri=creds_info["redirect_uris"][0]
+                    )
                     flow.fetch_token(code=code)
                     creds = flow.credentials
+                    st.write("Debug - Got credentials, saving to session")
+                    
                     # Persist credentials in session state
                     st.session_state.google_credentials = {
                         "token": creds.token,
@@ -103,20 +110,27 @@ class GoogleSheetsUserManager:
                     }
                     self.client = gspread.authorize(creds)
 
-                    # Clear query params so we don't reprocess the code on rerun
-                    try:
-                        # Clear the code from URL and rerun the app
-                        st.experimental_set_query_params()
-                    except Exception:
-                        pass
+                    # Clear query params
+                    st.experimental_set_query_params()
+                    st.success("✅ Authentication successful! Refreshing...")
                     st.rerun()
-                    return True  # Unreached, but explicit
+                    return True
                 except Exception as e:
                     st.error(f"OAuth exchange failed: {e}")
                     return False
 
+            # If no valid credentials, start OAuth flow
+            st.write("Debug - Starting OAuth flow")
+            flow = Flow.from_client_config(
+                {"web": creds_info},
+                scopes=self.scopes,
+                redirect_uri=creds_info["redirect_uris"][0]
+            )
+
             # Generate authorization URL
-            auth_url, _ = flow.authorization_url(prompt='consent')
+            auth_url, state = flow.authorization_url(prompt='consent')
+            st.write("Debug - Auth URL:", auth_url)
+            st.write("Debug - State:", state)
             
             st.markdown(f"""
             **🔐 Google Sheets Authentication Required**
