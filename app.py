@@ -693,7 +693,7 @@ def main():
                     else:
                         st.info("Manual HTML not found. Run `export_user_manual.bat` to generate it.")
             else:
-                st.info("User manual not found. See `SustainaCube_RAG/USER_MANUAL.md`.")
+                st.info("User manual not found. See `USER_MANUAL.md` in the repository.")
         except Exception as _e:
             st.info("User manual could not be displayed.")
     
