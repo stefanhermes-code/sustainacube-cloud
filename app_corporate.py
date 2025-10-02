@@ -473,7 +473,16 @@ def check_password():
             pass
     
     if not st.session_state.authenticated:
-        st.title("🔐 Corporate Access")
+        # Header with logo for login screen
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            try:
+                st.image("Logo Carpe Diem 5.png", width=120)
+            except:
+                st.markdown("🌱")  # Fallback if logo not found
+        with col2:
+            st.title("🔐 Corporate Access")
+        
         st.markdown("Please enter your corporate credentials to access SustainaCube.")
         
         with st.form("corporate_login"):
@@ -509,7 +518,7 @@ def main():
         return
     
     st.set_page_config(
-        page_title="SustainaCube RAG",
+        page_title="SustainaCube - Corporate Version",
         layout="wide",
         initial_sidebar_state="collapsed"  # Hide sidebar for corporate version
     )
@@ -522,7 +531,7 @@ def main():
         except:
             st.markdown("🌱")  # Fallback if logo not found
     with col2:
-        st.title("SustainaCube: Sustainability ExpertCenter")
+        st.title("SustainaCube - Corporate Version")
     
     st.markdown("Ask questions about sustainability, recycling, and environmental research in the Polyurethane Industry.")
     
