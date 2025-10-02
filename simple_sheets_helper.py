@@ -24,9 +24,7 @@ class SimpleSheetsUserManager:
             # Read the sheet as CSV
             df = pd.read_csv(self.csv_url)
             
-            # Debug: show what we got
-            st.write("Debug - CSV data:", df.head())
-            st.write("Debug - Columns:", df.columns.tolist())
+            # Clean read: no debug output in UI
             
             # Convert to dictionary
             users = {}
@@ -47,7 +45,8 @@ class SimpleSheetsUserManager:
             return users
         except Exception as e:
             st.error(f"Error reading users from Google Sheets: {e}")
-            st.write(f"CSV URL: {self.csv_url}")
+            # Optional: uncomment for troubleshooting
+            # st.write(f"CSV URL: {self.csv_url}")
             return {}
     
     def add_user(self, email: str, password: str, valid_until: str) -> bool:
