@@ -300,19 +300,70 @@ class SustainaCubeMinimal:
         return results[:top_k]
 
     def answer_question(self, question):
-        """Answer a question using the knowledge base"""
-        if not self.processed or not self.documents:
-            return "No documents have been processed yet. Please process some documents first.", []
+        """Main method to answer a question using Assistant if configured, else local retrieval"""
+        # Prefer Assistant (Vector Store + WebSearch) when configured
+        if self.assistant_id:
+            try:
+                thread = self.openai_client.beta.threads.create()
+                self.openai_client.beta.threads.messages.create(
+                    thread_id=thread.id,
+                    role="user",
+                    content=question
+                )
+                run = self.openai_client.beta.threads.runs.create(
+                    thread_id=thread.id,
+                    assistant_id=self.assistant_id
+                )
+                # Poll until completion
+                start = time.time()
+                while True:
+                    r = self.openai_client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+                    if r.status in ["completed", "failed", "cancelled", "expired"]:
+                        break
+                    time.sleep(0.4)
+                    # optional safety timeout
+                    if time.time() - start > 120:
+                        return "Assistant timeout. Please try again.", []
+                if r.status != "completed":
+                    return f"Assistant run status: {r.status}", []
+                msgs = self.openai_client.beta.threads.messages.list(thread_id=thread.id)
+                answer_text = ""
+                sources = []
+                for m in msgs.data:
+                    if m.role == 'assistant':
+                        parts = []
+                        for c in m.content:
+                            if getattr(c, 'type', '') == 'text':
+                                parts.append(c.text.value)
+                        if parts:
+                            answer_text = "\n\n".join(parts)
+                        # If the assistant returns file references as attachments
+                        if hasattr(m, 'attachments') and m.attachments:
+                            for att in m.attachments:
+                                fname = getattr(att, 'filename', None)
+                                if fname:
+                                    sources.append({'filename': fname, 'similarity_score': 1.0})
+                        break
+                
+                # Extract source references from the answer text if no attachments found
+                if not sources and answer_text:
+                    import re
+                    # Look for file references in the text (common patterns)
+                    file_refs = re.findall(r'\[([^\]]+\.(?:pdf|docx?|txt|pptx?|xlsx?|html?|md|csv))\]', answer_text, re.IGNORECASE)
+                    for ref in file_refs:
+                        sources.append({'filename': ref, 'similarity_score': 1.0})
+                    
+                    # Also look for quoted filenames
+                    quoted_files = re.findall(r'"([^"]+\.(?:pdf|docx?|txt|pptx?|xlsx?|html?|md|csv))"', answer_text, re.IGNORECASE)
+                    for ref in quoted_files:
+                        sources.append({'filename': ref, 'similarity_score': 1.0})
+                
+                return (answer_text or ""), sources
+            except Exception as e:
+                return f"Assistant error: {e}", []
         
-        # Search for relevant documents (limit to top 3 for corporate version)
-        search_results = self.search_documents(question, top_k=3)
-        
-        if not search_results:
-            return "No relevant information found in the knowledge base.", []
-        
-        # Assistant API disabled for corporate version - using direct GPT-4 instead
-        
-        # Fallback to simple search-based answer
+        # Fallback to local retrieval
+        search_results = self.search_documents(question)
         if not search_results:
             return "No relevant information found in the knowledge base.", []
         answer = self.generate_answer(question, search_results)
