@@ -53,22 +53,17 @@ class GoogleSheetsUserManager:
                     "redirect_uris": ["https://sustainacube-cloud-5oyba4hbtpwtcbpvevf2vk.streamlit.app"]
                 }
             
-            # Debug: Show what we're working with
-            st.write("Debug - Creds info:", creds_info)
             
             # Check if we have stored credentials in session state
             if 'google_credentials' in st.session_state and st.session_state.google_credentials:
                 try:
-                    st.write("Debug - Found stored credentials")
                     creds = Credentials.from_authorized_user_info(
                         st.session_state.google_credentials, self.scopes
                     )
                     if creds.valid:
-                        st.write("Debug - Credentials are valid")
                         self.client = gspread.authorize(creds)
                         return True
                     elif creds.expired and creds.refresh_token:
-                        st.write("Debug - Refreshing expired credentials")
                         creds.refresh(Request())
                         st.session_state.google_credentials = creds.to_json()
                         self.client = gspread.authorize(creds)
@@ -79,17 +74,13 @@ class GoogleSheetsUserManager:
             # Check for OAuth callback
             try:
                 qp = st.experimental_get_query_params()
-                st.write("Debug - Query params:", qp)
                 code_list = qp.get("code")
                 code = code_list[0] if code_list else None
-                st.write("Debug - Code found:", code)
             except Exception as e:
-                st.write("Debug - Error getting query params:", e)
                 code = None
 
             if code:
                 try:
-                    st.write("Debug - Processing OAuth callback")
                     flow = Flow.from_client_config(
                         {"web": creds_info},
                         scopes=self.scopes,
@@ -97,7 +88,6 @@ class GoogleSheetsUserManager:
                     )
                     flow.fetch_token(code=code)
                     creds = flow.credentials
-                    st.write("Debug - Got credentials, saving to session")
                     
                     # Persist credentials in session state
                     st.session_state.google_credentials = {
@@ -120,7 +110,6 @@ class GoogleSheetsUserManager:
                     return False
 
             # If no valid credentials, start OAuth flow
-            st.write("Debug - Starting OAuth flow")
             flow = Flow.from_client_config(
                 {"web": creds_info},
                 scopes=self.scopes,
@@ -129,8 +118,6 @@ class GoogleSheetsUserManager:
 
             # Generate authorization URL
             auth_url, state = flow.authorization_url(prompt='consent')
-            st.write("Debug - Auth URL:", auth_url)
-            st.write("Debug - State:", state)
             
             st.markdown(f"""
             **🔐 Google Sheets Authentication Required**
