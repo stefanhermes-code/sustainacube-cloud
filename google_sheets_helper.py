@@ -79,16 +79,12 @@ class GoogleSheetsUserManager:
             
             # Try to complete the OAuth callback if Google redirected back with ?code=
             try:
-                # Streamlit newer API
-                qp = st.query_params if hasattr(st, "query_params") else st.experimental_get_query_params()
-                code = None
-                if isinstance(qp, dict):
-                    # experimental_get_query_params returns Dict[str, List[str]]
-                    code_val = qp.get("code")
-                    code = code_val[0] if isinstance(code_val, list) and code_val else qp.get("code")
-                else:
-                    # st.query_params returns Mapping
-                    code = qp.get("code")
+                # Prefer experimental_get_query_params for broad compatibility
+                qp = st.experimental_get_query_params()
+                code_list = qp.get("code")
+                state_list = qp.get("state")
+                code = code_list[0] if code_list else None
+                _ = state_list[0] if state_list else None
             except Exception:
                 code = None
 
@@ -109,13 +105,12 @@ class GoogleSheetsUserManager:
 
                     # Clear query params so we don't reprocess the code on rerun
                     try:
-                        if hasattr(st, "query_params"):
-                            st.query_params.clear()
-                        else:
-                            st.experimental_set_query_params()
+                        # Clear the code from URL and rerun the app
+                        st.experimental_set_query_params()
                     except Exception:
                         pass
-                    return True
+                    st.rerun()
+                    return True  # Unreached, but explicit
                 except Exception as e:
                     st.error(f"OAuth exchange failed: {e}")
                     return False
