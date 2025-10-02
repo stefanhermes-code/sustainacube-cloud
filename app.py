@@ -871,41 +871,14 @@ def main():
         st.markdown("---")
         st.markdown("### 👥 User Management")
         
-        # Initialize user management data with persistent storage
-        if 'corporate_users' not in st.session_state:
-            st.session_state.corporate_users = {}
-        if 'user_usage' not in st.session_state:
-            st.session_state.user_usage = {}
+        # Import Google Sheets helper
+        from google_sheets_helper import user_manager
         
-        # Load users from persistent storage
-        users_file = Path(__file__).parent / "corporate_users.json"
-        usage_file = Path(__file__).parent / "user_usage.json"
-        
-        # Load corporate users
-        if users_file.exists() and not st.session_state.corporate_users:
-            try:
-                with open(users_file, 'r', encoding='utf-8') as f:
-                    st.session_state.corporate_users = json.load(f)
-            except Exception as e:
-                st.error(f"Error loading users: {e}")
-        
-        # Load usage data
-        if usage_file.exists() and not st.session_state.user_usage:
-            try:
-                with open(usage_file, 'r', encoding='utf-8') as f:
-                    st.session_state.user_usage = json.load(f)
-            except Exception as e:
-                st.error(f"Error loading usage data: {e}")
-        
-        # Save users to persistent storage whenever they change
-        def save_users():
-            try:
-                with open(users_file, 'w', encoding='utf-8') as f:
-                    json.dump(st.session_state.corporate_users, f, indent=2)
-                with open(usage_file, 'w', encoding='utf-8') as f:
-                    json.dump(st.session_state.user_usage, f, indent=2)
-            except Exception as e:
-                st.error(f"Error saving data: {e}")
+        # Load users from Google Sheets
+        corporate_users = user_manager.get_all_users()
+        if not corporate_users:
+            st.warning("Unable to load users from Google Sheets. Please check authentication.")
+            return
         
         # Add new user form
         with st.expander("➕ Add Corporate User"):
@@ -916,30 +889,19 @@ def main():
                 
                 if st.form_submit_button("Add User"):
                     if email and password and valid_until:
-                        user_id = email.lower()
-                        st.session_state.corporate_users[user_id] = {
-                            'email': email,
-                            'password': password,
-                            'valid_until': valid_until.strftime('%d/%m/%Y'),
-                            'created': datetime.now().strftime('%d/%m/%Y %H:%M'),
-                            'status': 'Active' if valid_until >= datetime.now().date() else 'Expired'
-                        }
-                        st.session_state.user_usage[user_id] = {
-                            'questions_asked': 0,
-                            'last_used': None,
-                            'total_cost': 0.0
-                        }
-                        save_users()  # Save to persistent storage
-                        st.success(f"User {email} added successfully!")
-                        st.rerun()
+                        if user_manager.add_user(email, password, valid_until.strftime('%d/%m/%Y')):
+                            st.success(f"User {email} added successfully!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to add user. Please try again.")
                     else:
                         st.error("Please fill in all fields")
         
         # User list and management
-        if st.session_state.corporate_users:
+        if corporate_users:
             st.markdown("#### 📋 Corporate Users")
             
-            for user_id, user_data in st.session_state.corporate_users.items():
+            for user_id, user_data in corporate_users.items():
                 # Check if user is expired
                 valid_until = datetime.strptime(user_data['valid_until'], '%d/%m/%Y').date()
                 if valid_until < datetime.now().date():
@@ -951,23 +913,21 @@ def main():
                     status_color = "🟢" if user_data['status'] == 'Active' else "🔴"
                     st.write(f"{status_color} **{user_data['email']}**")
                     st.caption(f"Valid until: {user_data['valid_until']}")
-                    if user_id in st.session_state.user_usage:
-                        usage = st.session_state.user_usage[user_id]
-                        st.caption(f"Questions: {usage['questions_asked']} | Cost: ${usage['total_cost']:.2f}")
+                    st.caption(f"Questions: {user_data['questions_asked']} | Cost: ${user_data['total_cost']:.2f}")
                 
                 with col2:
                     if st.button("🗑️", key=f"delete_{user_id}", help="Delete user"):
-                        del st.session_state.corporate_users[user_id]
-                        if user_id in st.session_state.user_usage:
-                            del st.session_state.user_usage[user_id]
-                        save_users()  # Save to persistent storage
-                        st.rerun()
+                        if user_manager.delete_user(user_data['email']):
+                            st.success(f"User {user_data['email']} deleted!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to delete user")
             
             # Usage statistics
             st.markdown("#### 📊 Usage Statistics")
-            total_questions = sum(usage['questions_asked'] for usage in st.session_state.user_usage.values())
-            total_cost = sum(usage['total_cost'] for usage in st.session_state.user_usage.values())
-            active_users = sum(1 for user in st.session_state.corporate_users.values() if user['status'] == 'Active')
+            total_questions = sum(user['questions_asked'] for user in corporate_users.values())
+            total_cost = sum(user['total_cost'] for user in corporate_users.values())
+            active_users = sum(1 for user in corporate_users.values() if user['status'] == 'Active')
             
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -1007,19 +967,20 @@ def main():
             # Track usage for corporate users (if any are logged in)
             if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
                 user_id = st.session_state.current_corporate_user.lower()
-                if user_id in st.session_state.user_usage:
-                    st.session_state.user_usage[user_id]['questions_asked'] += 1
-                    st.session_state.user_usage[user_id]['last_used'] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    # Estimate cost (you can adjust this based on your pricing model)
-                    estimated_cost = 0.10  # $0.10 per question
-                    st.session_state.user_usage[user_id]['total_cost'] += estimated_cost
-                    # Save usage data to persistent storage
-                    try:
-                        usage_file = Path(__file__).parent / "user_usage.json"
-                        with open(usage_file, 'w', encoding='utf-8') as f:
-                            json.dump(st.session_state.user_usage, f, indent=2)
-                    except Exception as e:
-                        st.error(f"Error saving usage data: {e}")
+                # Get current usage from Google Sheets
+                users = user_manager.get_all_users()
+                if user_id in users:
+                    current_questions = users[user_id]['questions_asked'] + 1
+                    current_cost = users[user_id]['total_cost'] + 0.10  # $0.10 per question
+                    last_used = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    
+                    # Update usage in Google Sheets
+                    user_manager.update_user_usage(
+                        user_id, 
+                        questions_asked=current_questions,
+                        last_used=last_used,
+                        total_cost=current_cost
+                    )
             
             st.markdown("### 📋 Answer")
             st.markdown(answer)

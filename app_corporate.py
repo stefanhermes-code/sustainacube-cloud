@@ -445,20 +445,15 @@ Answer:"""
             self.lock_file.unlink()
 
 def check_password():
-    """User authentication using corporate user database"""
+    """User authentication using Google Sheets database"""
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     
-    # Load corporate users from the same file as internal app
-    users_file = Path(__file__).parent / "corporate_users.json"
-    corporate_users = {}
+    # Import Google Sheets helper
+    from google_sheets_helper import user_manager
     
-    if users_file.exists():
-        try:
-            with open(users_file, 'r', encoding='utf-8') as f:
-                corporate_users = json.load(f)
-        except Exception as e:
-            st.error(f"Error loading users: {e}")
+    # Load corporate users from Google Sheets
+    corporate_users = user_manager.get_all_users()
     
     if not st.session_state.authenticated:
         # Header with logo for login screen
@@ -571,37 +566,24 @@ def main():
             # Track usage for corporate users
             if 'current_user' in st.session_state and st.session_state.current_user:
                 user_id = st.session_state.current_user.lower()
-                usage_file = Path(__file__).parent / "user_usage.json"
                 
-                # Load usage data
-                user_usage = {}
-                if usage_file.exists():
-                    try:
-                        with open(usage_file, 'r', encoding='utf-8') as f:
-                            user_usage = json.load(f)
-                    except Exception as e:
-                        st.error(f"Error loading usage data: {e}")
+                # Import Google Sheets helper
+                from google_sheets_helper import user_manager
                 
-                # Update usage for current user
-                if user_id not in user_usage:
-                    user_usage[user_id] = {
-                        'questions_asked': 0,
-                        'last_used': None,
-                        'total_cost': 0.0
-                    }
-                
-                user_usage[user_id]['questions_asked'] += 1
-                user_usage[user_id]['last_used'] = datetime.now().strftime('%d/%m/%Y %H:%M')
-                # Estimate cost (you can adjust this based on your pricing model)
-                estimated_cost = 0.10  # $0.10 per question
-                user_usage[user_id]['total_cost'] += estimated_cost
-                
-                # Save usage data to persistent storage
-                try:
-                    with open(usage_file, 'w', encoding='utf-8') as f:
-                        json.dump(user_usage, f, indent=2)
-                except Exception as e:
-                    st.error(f"Error saving usage data: {e}")
+                # Get current usage from Google Sheets
+                users = user_manager.get_all_users()
+                if user_id in users:
+                    current_questions = users[user_id]['questions_asked'] + 1
+                    current_cost = users[user_id]['total_cost'] + 0.10  # $0.10 per question
+                    last_used = datetime.now().strftime('%d/%m/%Y %H:%M')
+                    
+                    # Update usage in Google Sheets
+                    user_manager.update_user_usage(
+                        user_id, 
+                        questions_asked=current_questions,
+                        last_used=last_used,
+                        total_cost=current_cost
+                    )
             
             st.markdown("### 📋 Answer")
             st.markdown(answer)
