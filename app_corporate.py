@@ -446,53 +446,236 @@ def main():
             st.session_state.rag_system.process_documents("./Document Database")
     
     # Main interface
-    st.header("💬 Ask a Question")
+    col1, col2 = st.columns([2, 1])
     
-    # Question input
-    question = st.text_area(
-        "Enter your sustainability question:",
-        placeholder="e.g., What are the CO2 savings from PU foam recycling in Thailand?",
-        height=100
-    )
-    
-    def run_query(q: str):
-        with st.spinner("Searching knowledge base and generating answer..."):
-            answer, sources = st.session_state.rag_system.answer_question(q)
-        st.markdown("### 📋 Answer")
-        st.markdown(answer)
+    with col1:
+        st.header("💬 Ask a Question")
         
-        # Download buttons
-        st.download_button(
-            label="Copy Answer (Text)",
-            data=answer,
-            file_name="sustainacube_answer.txt",
-            mime="text/plain",
-            key="download_text"
+        # Manage question state
+        if 'question_input' not in st.session_state:
+            st.session_state.question_input = ""
+        if 'auto_run' not in st.session_state:
+            st.session_state.auto_run = False
+
+        # Question input
+        question = st.text_area(
+            "Enter your sustainability question:",
+            value=st.session_state.question_input,
+            placeholder="e.g., What are the CO2 savings from PU foam recycling in Thailand?",
+            height=100
         )
-        # Sources section removed for corporate version
+        st.session_state.question_input = question
+
+        def run_query(q: str):
+            with st.spinner("Searching knowledge base and generating answer..."):
+                answer, sources = st.session_state.rag_system.answer_question(q)
+            st.markdown("### 📋 Answer")
+            st.markdown(answer)
+            
+            # Convert markdown to HTML and provide professional styling
+            import re
+            import time
+            
+            # Convert markdown headers to HTML
+            html_answer = answer
+            html_answer = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_answer, flags=re.MULTILINE)
+            
+            # Remove source references from text (keep only the clean content)
+            html_answer = re.sub(r'【[^】]+】', '', html_answer)
+            
+            # Remove "Source References" section from content since we have a separate sources section
+            html_answer = re.sub(r'<h3>Source References</h3>.*?(?=<h3>|$)', '', html_answer, flags=re.DOTALL)
+            
+            # Convert bullet points
+            html_answer = re.sub(r'^- (.+)$', r'<li>\1</li>', html_answer, flags=re.MULTILINE)
+            # Wrap consecutive <li> in <ul>
+            html_answer = re.sub(r'(<li>.*</li>)(?:\s*<li>.*</li>)*', lambda m: f'<ul>{m.group(0)}</ul>', html_answer, flags=re.DOTALL)
+            
+            # Convert bold text
+            html_answer = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_answer)
+            
+            # Convert line breaks
+            html_answer = html_answer.replace('\n', '<br>')
+            
+            # Extract and format source references for the bottom
+            source_refs = []
+            if sources:
+                for source in sources:
+                    src_name = source.get('filename') if isinstance(source, dict) else str(source)
+                    score = source.get('similarity_score') if isinstance(source, dict) else None
+                    if isinstance(score, (int, float)):
+                        source_refs.append(f'<li>{src_name} (Relevance: {score:.3f})</li>')
+                    else:
+                        source_refs.append(f'<li>{src_name}</li>')
+            source_list = f'<ul>{"".join(source_refs)}</ul>' if source_refs else '<p><em>No specific sources referenced.</em></p>'
+            
+            html_content = f"""
+<!doctype html>
+<html>
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <style>
+    body {{ 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+      line-height: 1.7; 
+      color: #2c3e50; 
+      margin: 0; 
+      padding: 40px; 
+      background: #f8f9fa;
+    }}
+    .container {{
+      max-width: 800px; 
+      margin: 0 auto; 
+      background: white; 
+      padding: 40px; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }}
+    h1 {{ 
+      color: #2c3e50; 
+      font-size: 28px; 
+      font-weight: 700; 
+      margin: 0 0 20px 0; 
+      border-bottom: 3px solid #3498db; 
+      padding-bottom: 10px;
+    }}
+    h2 {{ 
+      color: #34495e; 
+      font-size: 22px; 
+      font-weight: 600; 
+      margin: 30px 0 15px 0; 
+      border-left: 4px solid #3498db; 
+      padding-left: 15px;
+    }}
+    h3 {{ 
+      color: #34495e; 
+      font-size: 18px; 
+      font-weight: 600; 
+      margin: 25px 0 12px 0;
+    }}
+    h4 {{ 
+      color: #34495e; 
+      font-size: 16px; 
+      font-weight: 600; 
+      margin: 20px 0 10px 0;
+    }}
+    ul {{ 
+      margin: 15px 0; 
+      padding-left: 20px;
+    }}
+    li {{ 
+      margin: 8px 0; 
+      line-height: 1.6;
+    }}
+    p {{ 
+      margin: 15px 0; 
+      line-height: 1.7;
+    }}
+    strong {{ 
+      color: #2c3e50; 
+      font-weight: 600;
+    }}
+    .header {{
+      text-align: center; 
+      margin-bottom: 30px; 
+      padding-bottom: 20px; 
+      border-bottom: 2px solid #ecf0f1;
+    }}
+    .header h1 {{ 
+      border: none; 
+      margin: 0; 
+      color: #2c3e50;
+    }}
+    .timestamp {{
+      color: #7f8c8d; 
+      font-size: 14px; 
+      margin-top: 10px;
+    }}
+    .question-section {{
+      background: #f8f9fa; 
+      padding: 20px; 
+      border-radius: 6px; 
+      margin: 20px 0; 
+      border-left: 4px solid #3498db;
+    }}
+    .question-text {{
+      font-size: 16px; 
+      color: #2c3e50; 
+      font-weight: 500; 
+      margin: 10px 0 0 0; 
+      line-height: 1.6;
+    }}
+    /* Sources section CSS removed for corporate version */
+  </style>
+  <title>SustainaCube Expert Response</title>
+</head>
+<body>
+  <div class=\"container\">
+    <div class=\"header\">
+      <h1>🌱 SustainaCube Expert Response</h1>
+      <div class=\"timestamp\">Generated on {time.strftime('%B %d, %Y at %I:%M %p')}</div>
+    </div>
+    <div class="question-section">
+      <h2>❓ Question</h2>
+      <p class="question-text">{q}</p>
+    </div>
+    <div class=\"content\">{html_answer}</div>
+    <!-- Sources section removed for corporate version -->
+  </div>
+</body>
+</html>
+"""
+            st.download_button(
+                label="Copy Answer (HTML)",
+                data=html_content,
+                file_name="sustainacube_answer.html",
+                mime="text/html",
+                key="download_html"
+            )
+            st.download_button(
+                label="Copy Answer (Text)",
+                data=answer,
+                file_name="sustainacube_answer.txt",
+                mime="text/plain",
+                key="download_text"
+            )
+            # Sources section removed for corporate version
+
+        if st.button("🔍 Get Answer", type="primary"):
+            if question.strip():
+                run_query(question)
+            else:
+                st.warning("Please enter a question.")
+
+        # Auto-run if triggered by a sample click
+        if st.session_state.auto_run and st.session_state.question_input.strip():
+            run_query(st.session_state.question_input)
+            st.session_state.auto_run = False
     
-    if st.button("🔍 Get Answer", type="primary"):
-        if question.strip():
-            run_query(question)
-        else:
-            st.warning("Please enter a question.")
-    
-    # Sample questions
-    st.markdown("### 💡 Sample Questions")
-    sample_questions = [
-        "What are the environmental benefits of PU foam recycling?",
-        "How does mattress recycling work in Thailand?",
-        "What are the CO2 savings from using recycled polyol?",
-        "What is the circular economy approach for PU materials?",
-        "How can companies improve their sustainability in PU manufacturing?"
-    ]
-    
-    cols = st.columns(2)
-    for i, q in enumerate(sample_questions):
-        with cols[i % 2]:
-            if st.button(f"💬 {q[:50]}...", key=f"sample_{i}"):
+    with col2:
+        # Right column content
+        st.markdown("### 💡 Sample Questions")
+        sample_questions = [
+            "What are the environmental benefits of PU foam recycling?",
+            "Compare EPR frameworks across different countries",
+            "What are the latest chemical recycling methods?",
+            "How much CO2 can be saved through mattress recycling?",
+            "What are the economic benefits of circular economy?"
+        ]
+        # Clickable buttons that fill input and auto-run
+        for q in sample_questions:
+            if st.button(q, key=f"sample_btn_{q}"):
                 st.session_state.question_input = q
-                run_query(q)
+                st.session_state.auto_run = True
+                st.rerun()
+
+        # Copyable text list
+        st.markdown("### 📋 Copyable Samples")
+        st.code("\n".join(f"- {q}" for q in sample_questions))
     
     # Logout button
     if st.button("🚪 Logout"):
