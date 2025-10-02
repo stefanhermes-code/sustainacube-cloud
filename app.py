@@ -872,7 +872,7 @@ def main():
         st.markdown("### 👥 User Management")
         
         # Import Google Sheets helper
-        from google_sheets_helper import user_manager
+        from simple_sheets_helper import user_manager
         
         # Load users from Google Sheets
         corporate_users = user_manager.get_all_users()
