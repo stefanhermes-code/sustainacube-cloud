@@ -4,6 +4,7 @@ Uses pandas and requests to work with publicly shared sheets
 """
 
 import streamlit as st
+# Build: simple-sheets integration active
 import pandas as pd
 import requests
 from datetime import datetime

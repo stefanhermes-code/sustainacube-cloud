@@ -1,4 +1,5 @@
 import streamlit as st
+# Build: simple-sheets integration active
 import openai
 import os
 from pathlib import Path
