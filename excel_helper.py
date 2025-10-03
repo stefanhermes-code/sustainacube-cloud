@@ -43,12 +43,15 @@ class ExcelUserManager:
             # Acquire token for client credentials flow
             result = app.acquire_token_for_client(scopes=self.scopes)
             
+            # Debug: show the full result
+            st.write("MSAL Token Result:", result)
+            
             if "access_token" in result:
                 # Store token in session state
                 st.session_state.microsoft_access_token = result["access_token"]
                 return result["access_token"]
             else:
-                st.error(f"Authentication failed: {result.get('error_description', 'Unknown error')}")
+                st.error(f"Authentication failed: {result}")
                 return None
             
         except Exception as e:
