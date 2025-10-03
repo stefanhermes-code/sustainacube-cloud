@@ -1,6 +1,6 @@
 """
 Microsoft Excel helper for SustainaCube user management
-Uses Microsoft Graph API to read/write Excel files
+Uses Microsoft Graph API to read/write Excel files (app-only flow)
 """
 
 import streamlit as st
@@ -10,23 +10,21 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 import msal
-import os
-import base64
-import hashlib
 
 class ExcelUserManager:
     def __init__(self):
         # Microsoft Graph API configuration
         self.graph_base_url = "https://graph.microsoft.com/v1.0"
-        self.scopes = ["https://graph.microsoft.com/Files.ReadWrite"]
-        
-        # Excel file configuration - you'll need to update these
-        self.excel_file_id = "EevgKjGcPZlPg73_n4aihb4BWl3xYHy_YvU-o-75-KBADA"  # SharePoint file ID
-        self.worksheet_name = "Users"  # Worksheet name
-        self.site_id = "shermes99-my.sharepoint.com"  # SharePoint site
+        self.scopes = [st.secrets.get("GRAPH_SCOPE", "https://graph.microsoft.com/.default")]
+        self.tenant_id = st.secrets.get("TENANT_ID", "76e6c5f9-6442-402e-a87a-b832bd7da586")
+        self.client_id = st.secrets.get("MICROSOFT_CLIENT_ID")
+        self.client_secret = st.secrets.get("MICROSOFT_CLIENT_SECRET")
+        self.site_host = st.secrets.get("SHAREPOINT_SITE_HOST", "shermes99-my.sharepoint.com")
+        self.excel_file_id = st.secrets.get("EXCEL_FILE_ID", "EevgKjGcPZlPg73_n4aihb4BWl3xYHy_YvU-o-75-KBADA")
+        self.worksheet_name = st.secrets.get("EXCEL_WORKSHEET", "Users")
         
     def get_access_token(self) -> Optional[str]:
-        """Get access token using MSAL"""
+        """Get access token using MSAL (app-only, client credentials)"""
         try:
             # Check if we have a valid token in session state
             if 'microsoft_access_token' in st.session_state:
@@ -35,121 +33,41 @@ class ExcelUserManager:
                 if token:
                     return token
             
-            # Get credentials from Streamlit secrets
-            client_id = st.secrets["MICROSOFT_CLIENT_ID"]
-            client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
-            
-            # Create MSAL app
+            # Create MSAL app for client credentials flow
             app = msal.ConfidentialClientApplication(
-                client_id=client_id,
-                client_credential=client_secret,
-                authority="https://login.microsoftonline.com/common"
+                client_id=self.client_id,
+                client_credential=self.client_secret,
+                authority=f"https://login.microsoftonline.com/{self.tenant_id}"
             )
             
-            # PKCE: generate code_verifier and code_challenge (S256)
-            def _base64url_encode(data: bytes) -> str:
-                return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
-
-            if 'ms_pkce_verifier' not in st.session_state:
-                verifier_bytes = os.urandom(32)
-                st.session_state.ms_pkce_verifier = _base64url_encode(verifier_bytes)
-            code_verifier = st.session_state.ms_pkce_verifier
-            code_challenge = _base64url_encode(hashlib.sha256(code_verifier.encode("ascii")).digest())
-
-            # Generate authorization URL with PKCE parameters
-            auth_url = app.get_authorization_request_url(
-                scopes=self.scopes,
-                redirect_uri=st.secrets["MICROSOFT_REDIRECT_URI"],
-                code_challenge=code_challenge,
-                code_challenge_method="S256"
-            )
+            # Acquire token for client credentials flow
+            result = app.acquire_token_for_client(scopes=self.scopes)
             
-            st.markdown(f"""
-            **🔐 Microsoft Excel Authentication Required**
-            
-            To manage users, please authenticate with Microsoft Excel:
-            
-            [🔗 Click here to authenticate]({auth_url})
-            
-            After authentication, you'll be redirected back to this app.
-            """)
-            
-            return None
+            if "access_token" in result:
+                # Store token in session state
+                st.session_state.microsoft_access_token = result["access_token"]
+                return result["access_token"]
+            else:
+                st.error(f"Authentication failed: {result.get('error_description', 'Unknown error')}")
+                return None
             
         except Exception as e:
             st.error(f"Authentication error: {e}")
             return None
     
     def handle_oauth_callback(self) -> Optional[str]:
-        """Handle OAuth callback and exchange code for token"""
-        try:
-            # Check for authorization code in query params
-            qp = st.query_params
-            code = qp.get("code", [None])[0]
-            
-            if not code:
-                return None
-            
-            # Get credentials
-            client_id = st.secrets["MICROSOFT_CLIENT_ID"]
-            client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
-            redirect_uri = st.secrets["MICROSOFT_REDIRECT_URI"]
-            
-            # Manual token exchange (with PKCE)
-            token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-            
-            data = {
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'code': code,
-                'redirect_uri': redirect_uri,
-                'grant_type': 'authorization_code',
-                'scope': ' '.join(self.scopes),
-                'code_verifier': st.session_state.get('ms_pkce_verifier', '')
-            }
-            
-            headers = {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-            
-            response = requests.post(token_url, data=data, headers=headers)
-            
-            if response.status_code == 200:
-                token_data = response.json()
-                if "access_token" in token_data:
-                    # Store token in session state
-                    st.session_state.microsoft_access_token = token_data["access_token"]
-                    # Clear query params
-                    st.query_params.clear()
-                    st.success("✅ Microsoft authentication successful! Refreshing...")
-                    st.rerun()
-                    return token_data["access_token"]
-                else:
-                    st.error(f"Token response missing access_token: {token_data}")
-                    return None
-            else:
-                st.error(f"Token exchange failed: {response.status_code} - {response.text}")
-                return None
-                
-        except Exception as e:
-            st.error(f"Callback handling failed: {e}")
-            return None
+        """No-op for app-only flow"""
+        return None
     
     def get_all_users(self) -> Dict[str, Dict]:
         """Get all users from Excel file"""
         try:
-            # First check for OAuth callback
-            callback_token = self.handle_oauth_callback()
-            if callback_token:
-                access_token = callback_token
-            else:
-                access_token = self.get_access_token()
-            
+            access_token = self.get_access_token()
             if not access_token:
                 return {}
             
             # Read Excel file from SharePoint
-            url = f"{self.graph_base_url}/sites/{self.site_id}/drive/items/{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/usedRange"
+            url = f"{self.graph_base_url}/sites/{self.site_host}/drive/items/{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/usedRange"
             
             headers = {
                 'Authorization': f'Bearer {access_token}',
@@ -195,7 +113,7 @@ class ExcelUserManager:
                 return False
             
             # Add new row to Excel
-            url = f"{self.graph_base_url}/sites/{self.site_id}/drive/items/{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/tables/UsersTable/rows/add"
+            url = f"{self.graph_base_url}/sites/{self.site_host}/drive/items/{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/tables/UsersTable/rows/add"
             
             headers = {
                 'Authorization': f'Bearer {access_token}',
