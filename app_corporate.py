@@ -450,10 +450,10 @@ def check_password():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     
-    # Import Google Sheets helper
-    from simple_sheets_helper import user_manager
+    # Import Excel helper
+    from excel_helper import user_manager
     
-    # Load corporate users from Google Sheets
+    # Load corporate users from Excel
     corporate_users = user_manager.get_all_users()
     
     if not st.session_state.authenticated:
@@ -578,17 +578,17 @@ def main():
             if 'current_user' in st.session_state and st.session_state.current_user:
                 user_id = st.session_state.current_user.lower()
                 
-                # Import Google Sheets helper
-                from simple_sheets_helper import user_manager
+                # Import Excel helper
+                from excel_helper import user_manager
                 
-                # Get current usage from Google Sheets
+                # Get current usage from Excel
                 users = user_manager.get_all_users()
                 if user_id in users:
                     current_questions = users[user_id]['questions_asked'] + 1
                     current_cost = users[user_id]['total_cost'] + 0.10  # $0.10 per question
                     last_used = datetime.now().strftime('%d/%m/%Y %H:%M')
                     
-                    # Update usage in Google Sheets
+                    # Update usage in Excel
                     user_manager.update_user_usage(
                         user_id, 
                         questions_asked=current_questions,

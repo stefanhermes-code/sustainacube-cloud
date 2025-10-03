@@ -1,5 +1,5 @@
 import streamlit as st
-# Build: simple-sheets integration active
+# Build: excel integration active
 import openai
 import os
 from pathlib import Path
@@ -872,13 +872,13 @@ def main():
         st.markdown("---")
         st.markdown("### 👥 User Management")
         
-        # Import Google Sheets helper
-        from simple_sheets_helper import user_manager
+        # Import Excel helper
+        from excel_helper import user_manager
         
-        # Load users from Google Sheets
+        # Load users from Excel
         corporate_users = user_manager.get_all_users()
         if not corporate_users:
-            st.warning("Unable to load users from Google Sheets. Please check authentication.")
+            st.warning("Unable to load users from Excel. Please check authentication.")
             return
         
         # Add new user form
@@ -968,14 +968,14 @@ def main():
             # Track usage for corporate users (if any are logged in)
             if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
                 user_id = st.session_state.current_corporate_user.lower()
-                # Get current usage from Google Sheets
+                # Get current usage from Excel
                 users = user_manager.get_all_users()
                 if user_id in users:
                     current_questions = users[user_id]['questions_asked'] + 1
                     current_cost = users[user_id]['total_cost'] + 0.10  # $0.10 per question
                     last_used = datetime.now().strftime('%d/%m/%Y %H:%M')
                     
-                    # Update usage in Google Sheets
+                    # Update usage in Excel
                     user_manager.update_user_usage(
                         user_id, 
                         questions_asked=current_questions,
