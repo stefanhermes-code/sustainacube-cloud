@@ -870,345 +870,136 @@ def main():
                 st.metric("New Files", total_available)
         
         st.markdown("---")
-        st.markdown("### 👥 User Management")
-        
-        # Import Excel helper
-        from excel_helper import user_manager
-        
-        # Load users from Excel
-        corporate_users = user_manager.get_all_users()
-        if not corporate_users:
-            st.warning("Unable to load users from Excel. Please check authentication.")
-            return
-        
-        # Add new user form
-        with st.expander("➕ Add Corporate User"):
-            with st.form("add_user_form", clear_on_submit=True):
-                email = st.text_input("Email Address", placeholder="user@company.com", key="add_email")
-                password = st.text_input("Password", type="password", key="add_password")
-                valid_until = st.date_input("Valid Until", key="add_valid_until")
-                
-                if st.form_submit_button("Add User"):
-                    if email and password and valid_until:
-                        if user_manager.add_user(email, password, valid_until.strftime('%d/%m/%Y')):
-                            st.success(f"User {email} added successfully!")
-                            st.rerun()
-                        else:
-                            st.error("Failed to add user. Please try again.")
-                    else:
-                        st.error("Please fill in all fields")
-        
-        # User list and management
-        if corporate_users:
-            st.markdown("#### 📋 Corporate Users")
-            
-            for user_id, user_data in corporate_users.items():
-                # Check if user is expired
-                valid_until = datetime.strptime(user_data['valid_until'], '%d/%m/%Y').date()
-                if valid_until < datetime.now().date():
-                    user_data['status'] = 'Expired'
-                
-                # Display user info
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    status_color = "🟢" if user_data['status'] == 'Active' else "🔴"
-                    st.write(f"{status_color} **{user_data['email']}**")
-                    st.caption(f"Valid until: {user_data['valid_until']}")
-                    st.caption(f"Questions: {user_data['questions_asked']} | Cost: ${user_data['total_cost']:.2f}")
-                
-                with col2:
-                    if st.button("🗑️", key=f"delete_{user_id}", help="Delete user"):
-                        if user_manager.delete_user(user_data['email']):
-                            st.success(f"User {user_data['email']} deleted!")
-                            st.rerun()
-                        else:
-                            st.error("Failed to delete user")
-            
-            # Usage statistics
-            st.markdown("#### 📊 Usage Statistics")
-            total_questions = sum(user['questions_asked'] for user in corporate_users.values())
-            total_cost = sum(user['total_cost'] for user in corporate_users.values())
-            active_users = sum(1 for user in corporate_users.values() if user['status'] == 'Active')
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Active Users", active_users)
-            with col2:
-                st.metric("Total Questions", total_questions)
-            with col3:
-                st.metric("Total Cost", f"${total_cost:.2f}")
-        else:
-            st.info("No corporate users added yet")
-    
-    # Main interface
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.header("💬 Ask a Question")
-        
-        # Manage question state
-        if 'question_input' not in st.session_state:
-            st.session_state.question_input = ""
-        if 'auto_run' not in st.session_state:
-            st.session_state.auto_run = False
+        # User Management removed for internal app
 
-        # Question input
-        question = st.text_area(
-            "Enter your sustainability question:",
-            value=st.session_state.question_input,
-            placeholder="e.g., What are the CO2 savings from PU foam recycling in Thailand?",
-            height=100
-        )
-        st.session_state.question_input = question
+        # Main interface
+        col1, col2 = st.columns([1, 1])
 
-        def run_query(q: str):
-            with st.spinner("Searching knowledge base and generating answer..."):
-                answer, sources = st.session_state.rag_system.answer_question(q)
-            
-            # Track usage for corporate users (if any are logged in)
-            if 'current_corporate_user' in st.session_state and st.session_state.current_corporate_user:
-                user_id = st.session_state.current_corporate_user.lower()
-                # Get current usage from Excel
-                users = user_manager.get_all_users()
-                if user_id in users:
-                    current_questions = users[user_id]['questions_asked'] + 1
-                    current_cost = users[user_id]['total_cost'] + 0.10  # $0.10 per question
-                    last_used = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    
-                    # Update usage in Excel
-                    user_manager.update_user_usage(
-                        user_id, 
-                        questions_asked=current_questions,
-                        last_used=last_used,
-                        total_cost=current_cost
-                    )
-            
-            st.markdown("### 📋 Answer")
-            st.markdown(answer)
-            # Convert markdown to HTML and provide professional styling
-            import re
-            
-            # Convert markdown headers to HTML
-            html_answer = answer
-            html_answer = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_answer, flags=re.MULTILINE)
-            html_answer = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html_answer, flags=re.MULTILINE)
-            html_answer = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_answer, flags=re.MULTILINE)
-            html_answer = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_answer, flags=re.MULTILINE)
-            
-            # Remove source references from text (keep only the clean content)
-            html_answer = re.sub(r'【[^】]+】', '', html_answer)
-            
-            # Remove "Source References" section from content since we have a separate sources section
-            html_answer = re.sub(r'<h3>Source References</h3>.*?(?=<h3>|$)', '', html_answer, flags=re.DOTALL)
-            
-            # Convert bullet points
-            html_answer = re.sub(r'^- (.+)$', r'<li>\1</li>', html_answer, flags=re.MULTILINE)
-            # Wrap consecutive <li> in <ul>
-            html_answer = re.sub(r'(<li>.*</li>)(?:\s*<li>.*</li>)*', lambda m: f'<ul>{m.group(0)}</ul>', html_answer, flags=re.DOTALL)
-            
-            # Convert bold text
-            html_answer = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_answer)
-            
-            # Convert line breaks
-            html_answer = html_answer.replace('\n', '<br>')
-            
-            # Extract and format source references for the bottom
-            source_refs = []
-            if sources:
-                for source in sources:
-                    src_name = source.get('filename') if isinstance(source, dict) else str(source)
-                    score = source.get('similarity_score') if isinstance(source, dict) else None
-                    if isinstance(score, (int, float)):
-                        source_refs.append(f'<li>{src_name} (Relevance: {score:.3f})</li>')
-                    else:
-                        source_refs.append(f'<li>{src_name}</li>')
-            source_list = f'<ul>{"".join(source_refs)}</ul>' if source_refs else '<p><em>No specific sources referenced.</em></p>'
-            
-            html_content = f"""
+        with col1:
+            st.header("💬 Ask a Question")
+
+            # Manage question state
+            if 'question_input' not in st.session_state:
+                st.session_state.question_input = ""
+            if 'auto_run' not in st.session_state:
+                st.session_state.auto_run = False
+
+            # Question input
+            question = st.text_area(
+                "Enter your sustainability question:",
+                value=st.session_state.question_input,
+                placeholder="e.g., What are the CO2 savings from PU foam recycling in Thailand?",
+                height=100
+            )
+            st.session_state.question_input = question
+
+            def run_query(q: str):
+                with st.spinner("Searching knowledge base and generating answer..."):
+                    answer, sources = st.session_state.rag_system.answer_question(q)
+
+                st.markdown("### 📋 Answer")
+                st.markdown(answer)
+
+                # Convert markdown to HTML and provide professional styling
+                import re
+                import time
+
+                html_answer = answer
+                html_answer = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_answer, flags=re.MULTILINE)
+                html_answer = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html_answer, flags=re.MULTILINE)
+                html_answer = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_answer, flags=re.MULTILINE)
+                html_answer = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_answer, flags=re.MULTILINE)
+                html_answer = re.sub(r'【[^】]+】', '', html_answer)
+                html_answer = re.sub(r'<h3>Source References</h3>.*?(?=<h3>|$)', '', html_answer, flags=re.DOTALL)
+                html_answer = re.sub(r'^- (.+)$', r'<li>\1</li>', html_answer, flags=re.MULTILINE)
+                html_answer = re.sub(r'(<li>.*</li>)(?:\s*<li>.*</li>)*', lambda m: f'<ul>{m.group(0)}</ul>', html_answer, flags=re.DOTALL)
+                html_answer = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_answer)
+                html_answer = html_answer.replace('\n', '<br>')
+
+                source_refs = []
+                if sources:
+                    for source in sources:
+                        src_name = source.get('filename') if isinstance(source, dict) else str(source)
+                        score = source.get('similarity_score') if isinstance(source, dict) else None
+                        if isinstance(score, (int, float)):
+                            source_refs.append(f'<li>{src_name} (Relevance: {score:.3f})</li>')
+                        else:
+                            source_refs.append(f'<li>{src_name}</li>')
+                source_list = f'<ul>{"".join(source_refs)}</ul>' if source_refs else '<p><em>No specific sources referenced.</em></p>'
+
+                html_content = f"""
 <!doctype html>
 <html>
 <head>
   <meta charset=\"utf-8\" />
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
   <style>
-    body {{ 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
-      line-height: 1.7; 
-      color: #2c3e50; 
-      margin: 0; 
-      padding: 40px; 
-      background: #f8f9fa;
-    }}
-    .container {{
-      max-width: 800px; 
-      margin: 0 auto; 
-      background: white; 
-      padding: 40px; 
-      border-radius: 8px; 
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }}
-    h1 {{ 
-      color: #2c3e50; 
-      font-size: 28px; 
-      font-weight: 700; 
-      margin: 0 0 20px 0; 
-      border-bottom: 3px solid #3498db; 
-      padding-bottom: 10px;
-    }}
-    h2 {{ 
-      color: #34495e; 
-      font-size: 22px; 
-      font-weight: 600; 
-      margin: 30px 0 15px 0; 
-      border-left: 4px solid #3498db; 
-      padding-left: 15px;
-    }}
-    h3 {{ 
-      color: #34495e; 
-      font-size: 18px; 
-      font-weight: 600; 
-      margin: 25px 0 12px 0;
-    }}
-    h4 {{ 
-      color: #34495e; 
-      font-size: 16px; 
-      font-weight: 600; 
-      margin: 20px 0 10px 0;
-    }}
-    ul {{ 
-      margin: 15px 0; 
-      padding-left: 20px;
-    }}
-    li {{ 
-      margin: 8px 0; 
-      line-height: 1.6;
-    }}
-    p {{ 
-      margin: 15px 0; 
-      line-height: 1.7;
-    }}
-    strong {{ 
-      color: #2c3e50; 
-      font-weight: 600;
-    }}
-    .header {{
-      text-align: center; 
-      margin-bottom: 30px; 
-      padding-bottom: 20px; 
-      border-bottom: 2px solid #ecf0f1;
-    }}
-    .header h1 {{ 
-      border: none; 
-      margin: 0; 
-      color: #2c3e50;
-    }}
-    .timestamp {{
-      color: #7f8c8d; 
-      font-size: 14px; 
-      margin-top: 10px;
-    }}
-    .question-section {{
-      background: #f8f9fa; 
-      padding: 20px; 
-      border-radius: 6px; 
-      margin: 20px 0; 
-      border-left: 4px solid #3498db;
-    }}
-    .question-text {{
-      font-size: 16px; 
-      color: #2c3e50; 
-      font-weight: 500; 
-      margin: 10px 0 0 0; 
-      line-height: 1.6;
-    }}
-    /* Sources section CSS removed for corporate version */
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.7; color: #2c3e50; margin: 0; padding: 40px; background: #f8f9fa; }}
+    .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+    h1 {{ color: #2c3e50; font-size: 28px; font-weight: 700; margin: 0 0 20px 0; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
+    h2 {{ color: #34495e; font-size: 22px; font-weight: 600; margin: 30px 0 15px 0; border-left: 4px solid #3498db; padding-left: 15px; }}
+    h3 {{ color: #34495e; font-size: 18px; font-weight: 600; margin: 25px 0 12px 0; }}
+    h4 {{ color: #34495e; font-size: 16px; font-weight: 600; margin: 20px 0 10px 0; }}
+    ul {{ margin: 15px 0; padding-left: 20px; }}
+    li {{ margin: 8px 0; line-height: 1.6; }}
+    p {{ margin: 15px 0; line-height: 1.7; }}
+    strong {{ color: #2c3e50; font-weight: 600; }}
+    .header {{ text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #ecf0f1; }}
+    .header h1 {{ border: none; margin: 0; color: #2c3e50; }}
+    .timestamp {{ color: #7f8c8d; font-size: 14px; margin-top: 10px; }}
+    .question-section {{ background: #f8f9fa; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #3498db; }}
+    .question-text {{ font-size: 16px; color: #2c3e50; font-weight: 500; margin: 10px 0 0 0; line-height: 1.6; }}
   </style>
   <title>SustainaCube Expert Response</title>
 </head>
 <body>
   <div class=\"container\">
-    <div class=\"header\">
-      <h1>🌱 SustainaCube Expert Response</h1>
-      <div class=\"timestamp\">Generated on {time.strftime('%B %d, %Y at %I:%M %p')}</div>
-    </div>
-    <div class="question-section">
-      <h2>❓ Question</h2>
-      <p class="question-text">{q}</p>
-    </div>
+    <div class=\"header\"><h1>🌱 SustainaCube Expert Response</h1><div class=\"timestamp\">Generated on {time.strftime('%B %d, %Y at %I:%M %p')}</div></div>
+    <div class=\"question-section\"><h2>❓ Question</h2><p class=\"question-text\">{q}</p></div>
     <div class=\"content\">{html_answer}</div>
-    <!-- Sources section removed for corporate version -->
   </div>
 </body>
 </html>
 """
-            st.download_button(
-                label="Copy Answer (HTML)",
-                data=html_content,
-                file_name="sustainacube_answer.html",
-                mime="text/html",
-                key="download_html"
-            )
-            st.download_button(
-                label="Copy Answer (Text)",
-                data=answer,
-                file_name="sustainacube_answer.txt",
-                mime="text/plain",
-                key="download_text"
-            )
-            # Sources section for internal version
-            if sources:
-                st.markdown("### 📚 Sources")
-                for source in sources:
-                    src_name = source.get('filename') if isinstance(source, dict) else str(source)
-                    score = source.get('similarity_score') if isinstance(source, dict) else None
-                    if isinstance(score, (int, float)):
-                        st.markdown(f"• **{src_name}** (Relevance: {score:.3f})")
-                    else:
-                        st.markdown(f"• **{src_name}**")
+                st.download_button(
+                    label="Copy Answer (HTML)",
+                    data=html_content,
+                    file_name="sustainacube_answer.html",
+                    mime="text/html",
+                    key="download_html"
+                )
+                st.download_button(
+                    label="Copy Answer (Text)",
+                    data=answer,
+                    file_name="sustainacube_answer.txt",
+                    mime="text/plain",
+                    key="download_text"
+                )
 
-        if st.button("🔍 Get Answer", type="primary"):
-            if question.strip():
-                run_query(question)
-            else:
-                st.warning("Please enter a question.")
+            if st.button("🔍 Get Answer", type="primary"):
+                if question.strip():
+                    run_query(question)
+                else:
+                    st.warning("Please enter a question.")
 
-        # Auto-run if triggered by a sample click
-        if st.session_state.auto_run and st.session_state.question_input.strip():
-            run_query(st.session_state.question_input)
-            st.session_state.auto_run = False
-    
-    with col2:
-        st.markdown("---")
-        st.markdown("### 🤖 Assistant")
-        use_assistant = st.checkbox("Use OpenAI Assistant (Vector Store)", value=bool(st.session_state.rag_system.assistant_id))
-        # Hide Assistant ID; use environment-configured value only
-        if use_assistant:
-            # keep current assistant_id (from .env) if present
-            if not st.session_state.rag_system.assistant_id:
-                st.info("Assistant ID not found in environment. Set OPENAI_ASSISTANT_ID in .env and restart.")
-            else:
-                st.caption("Assistant enabled. Answers will use your OpenAI Assistant with Retrieval/WebSearch if enabled.")
-        else:
-            st.session_state.rag_system.assistant_id = ""
-        st.markdown("---")
-        st.markdown("### 💡 Sample Questions")
-        sample_questions = [
-            "What are the environmental benefits of PU foam recycling?",
-            "Compare EPR frameworks across different countries",
-            "What are the latest chemical recycling methods?",
-            "How much CO2 can be saved through mattress recycling?",
-            "What are the economic benefits of circular economy?"
-        ]
-        # Clickable buttons that fill input and auto-run
-        for q in sample_questions:
-            if st.button(q, key=f"sample_btn_{q}"):
-                st.session_state.question_input = q
-                st.session_state.auto_run = True
-                st.rerun()
+            if st.session_state.auto_run and st.session_state.question_input.strip():
+                run_query(st.session_state.question_input)
+                st.session_state.auto_run = False
 
-        # Copyable text list
-        st.markdown("### 📋 Copyable Samples")
-        st.code("\n".join(f"- {q}" for q in sample_questions))
+        with col2:
+            st.markdown("### 💡 Sample Questions")
+            sample_questions = [
+                "What are the environmental benefits of PU foam recycling?",
+                "Compare EPR frameworks across different countries",
+                "What are the latest chemical recycling methods?",
+                "How much CO2 can be saved through mattress recycling?",
+                "What are the economic benefits of circular economy?"
+            ]
+            for q in sample_questions:
+                if st.button(q, key=f"sample_btn_{q}"):
+                    st.session_state.question_input = q
+                    st.session_state.auto_run = True
+                    st.rerun()
 
 if __name__ == "__main__":
     main()

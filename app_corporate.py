@@ -12,6 +12,7 @@ import json
 import time
 from datetime import datetime
 from PIL import Image
+from typing import Dict
 
 # Load environment variables
 load_dotenv()
@@ -446,47 +447,73 @@ Answer:"""
             self.lock_file.unlink()
 
 def check_password():
-    """User authentication using Google Sheets database"""
+    """User authentication using local CSV (offline-managed)"""
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
-    
-    # Import Excel helper
-    from excel_helper import user_manager
-    
-    # Load corporate users from Excel
-    corporate_users = user_manager.get_all_users()
-    
+
+    # Load users from local CSV (prefer 'Corporate Users.csv', fallback to 'corporate_users.csv')
+    import csv
+    users: Dict[str, Dict] = {}
+    csv_paths = ["Corporate Users.csv", "corporate_users.csv"]
+    csv_loaded = False
+    for csv_path in csv_paths:
+        try:
+            with open(csv_path, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    email_key = (row.get("Email", "") or "").strip().lower()
+                    if email_key:
+                        users[email_key] = {
+                            'email': (row.get('Email', '') or '').strip(),
+                            'password': (row.get('Password', '') or '').strip(),
+                            'valid_until': (row.get('Valid_Until', '') or '').strip(),
+                            'status': (row.get('Status', 'Active') or 'Active').strip(),
+                        }
+                csv_loaded = True
+                break
+        except FileNotFoundError:
+            continue
+    if not csv_loaded:
+        st.error("Corporate Users.csv not found. Please upload the CSV and redeploy.")
+        return False
+
     if not st.session_state.authenticated:
-        # Header with logo for login screen
         col1, col2 = st.columns([1, 4])
         with col1:
             try:
                 st.image("Logo Carpe Diem 5.png", width=120)
             except:
-                st.markdown("🌱")  # Fallback if logo not found
+                st.markdown("🌱")
         with col2:
             st.title("🔐 Corporate Access")
-        
+
         st.markdown("Please enter your corporate credentials to access SustainaCube.")
-        
+
         email = st.text_input("Email Address", placeholder="user@company.com")
         password = st.text_input("Password", type="password")
-        
+
         if st.button("Login"):
             if email and password:
                 user_id = email.lower()
-                if user_id in corporate_users:
-                    user_data = corporate_users[user_id]
-                    # Check if password matches and user is not expired
-                    if user_data['password'] == password:
-                        # Check if user is still valid
-                        valid_until = datetime.strptime(user_data['valid_until'], '%d/%m/%Y').date()
-                        if valid_until >= datetime.now().date():
+                if user_id in users:
+                    user = users[user_id]
+                    if user.get('status', 'Active').lower() != 'active':
+                        st.error("Your account is not active. Contact administrator.")
+                    elif user.get('password') == password:
+                        try:
+                            valid_until_str = user.get('valid_until', '')
+                            if valid_until_str:
+                                valid_until = datetime.strptime(valid_until_str, '%d/%m/%Y').date()
+                                if valid_until < datetime.now().date():
+                                    st.error("Your account has expired. Contact administrator.")
+                                    return False
                             st.session_state.authenticated = True
-                            st.session_state.current_user = user_data['email']
+                            st.session_state.current_user = user['email']
                             st.rerun()
-                        else:
-                            st.error("Your account has expired. Please contact your administrator.")
+                        except Exception:
+                            st.session_state.authenticated = True
+                            st.session_state.current_user = user['email']
+                            st.rerun()
                     else:
                         st.error("Incorrect password. Please try again.")
                 else:
