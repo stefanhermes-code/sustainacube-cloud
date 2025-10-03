@@ -10,6 +10,9 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 import msal
+import os
+import base64
+import hashlib
 
 class ExcelUserManager:
     def __init__(self):
@@ -43,10 +46,22 @@ class ExcelUserManager:
                 authority="https://login.microsoftonline.com/common"
             )
             
-            # Generate authorization URL
+            # PKCE: generate code_verifier and code_challenge (S256)
+            def _base64url_encode(data: bytes) -> str:
+                return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+            if 'ms_pkce_verifier' not in st.session_state:
+                verifier_bytes = os.urandom(32)
+                st.session_state.ms_pkce_verifier = _base64url_encode(verifier_bytes)
+            code_verifier = st.session_state.ms_pkce_verifier
+            code_challenge = _base64url_encode(hashlib.sha256(code_verifier.encode("ascii")).digest())
+
+            # Generate authorization URL with PKCE parameters
             auth_url = app.get_authorization_request_url(
                 scopes=self.scopes,
-                redirect_uri=st.secrets["MICROSOFT_REDIRECT_URI"]
+                redirect_uri=st.secrets["MICROSOFT_REDIRECT_URI"],
+                code_challenge=code_challenge,
+                code_challenge_method="S256"
             )
             
             st.markdown(f"""
@@ -80,7 +95,7 @@ class ExcelUserManager:
             client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
             redirect_uri = st.secrets["MICROSOFT_REDIRECT_URI"]
             
-            # Manual token exchange
+            # Manual token exchange (with PKCE)
             token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
             
             data = {
@@ -89,7 +104,8 @@ class ExcelUserManager:
                 'code': code,
                 'redirect_uri': redirect_uri,
                 'grant_type': 'authorization_code',
-                'scope': ' '.join(self.scopes)
+                'scope': ' '.join(self.scopes),
+                'code_verifier': st.session_state.get('ms_pkce_verifier', '')
             }
             
             headers = {
