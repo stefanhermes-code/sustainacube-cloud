@@ -80,31 +80,39 @@ class ExcelUserManager:
             client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
             redirect_uri = st.secrets["MICROSOFT_REDIRECT_URI"]
             
-            # Create MSAL app
-            app = msal.ConfidentialClientApplication(
-                client_id=client_id,
-                client_credential=client_secret,
-                authority="https://login.microsoftonline.com/common"
-            )
+            # Manual token exchange
+            token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
             
-            # Exchange code for token
-            result = app.acquire_token_by_authorization_code(
-                code=code,
-                scopes=self.scopes,
-                redirect_uri=redirect_uri
-            )
+            data = {
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'code': code,
+                'redirect_uri': redirect_uri,
+                'grant_type': 'authorization_code',
+                'scope': ' '.join(self.scopes)
+            }
             
-            if "access_token" in result:
-                # Store token in session state
-                st.session_state.microsoft_access_token = result["access_token"]
-                # Clear query params
-                st.query_params.clear()
-                st.success("✅ Microsoft authentication successful! Refreshing...")
-                st.rerun()
-                return result["access_token"]
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            response = requests.post(token_url, data=data, headers=headers)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                if "access_token" in token_data:
+                    # Store token in session state
+                    st.session_state.microsoft_access_token = token_data["access_token"]
+                    # Clear query params
+                    st.query_params.clear()
+                    st.success("✅ Microsoft authentication successful! Refreshing...")
+                    st.rerun()
+                    return token_data["access_token"]
+                else:
+                    st.error(f"Token response missing access_token: {token_data}")
+                    return None
             else:
-                # Debug: show the full result
-                st.error(f"Authentication failed: {result}")
+                st.error(f"Token exchange failed: {response.status_code} - {response.text}")
                 return None
                 
         except Exception as e:
