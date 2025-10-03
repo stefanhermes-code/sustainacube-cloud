@@ -92,7 +92,8 @@ class ExcelUserManager:
             result = app.acquire_token_by_authorization_code(
                 code=code,
                 scopes=self.scopes,
-                redirect_uri=redirect_uri
+                redirect_uri=redirect_uri,
+                state=None
             )
             
             if "access_token" in result:
@@ -102,7 +103,8 @@ class ExcelUserManager:
                 st.rerun()
                 return result["access_token"]
             else:
-                st.error(f"Authentication failed: {result.get('error_description', 'Unknown error')}")
+                # Debug: show the full result
+                st.error(f"Authentication failed: {result}")
                 return None
                 
         except Exception as e:
