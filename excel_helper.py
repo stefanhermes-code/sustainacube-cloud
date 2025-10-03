@@ -25,26 +25,25 @@ class ExcelUserManager:
     def get_access_token(self) -> Optional[str]:
         """Get access token using MSAL"""
         try:
+            # Check if we have a valid token in session state
+            if 'microsoft_access_token' in st.session_state:
+                token = st.session_state.microsoft_access_token
+                # Simple check - in production you'd verify expiration
+                if token:
+                    return token
+            
             # Get credentials from Streamlit secrets
             client_id = st.secrets["MICROSOFT_CLIENT_ID"]
             client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
-            tenant_id = "common"  # Use common for multi-tenant
             
             # Create MSAL app
             app = msal.ConfidentialClientApplication(
                 client_id=client_id,
                 client_credential=client_secret,
-                authority=f"https://login.microsoftonline.com/{tenant_id}"
+                authority="https://login.microsoftonline.com/common"
             )
             
-            # Try to get token silently first
-            accounts = app.get_accounts()
-            if accounts:
-                result = app.acquire_token_silent(self.scopes, account=accounts[0])
-                if result and "access_token" in result:
-                    return result["access_token"]
-            
-            # If silent auth fails, start interactive flow
+            # Generate authorization URL
             auth_url = app.get_authorization_request_url(
                 scopes=self.scopes,
                 redirect_uri=st.secrets["MICROSOFT_REDIRECT_URI"]
@@ -96,6 +95,8 @@ class ExcelUserManager:
             )
             
             if "access_token" in result:
+                # Store token in session state
+                st.session_state.microsoft_access_token = result["access_token"]
                 # Clear query params
                 st.query_params.clear()
                 st.success("✅ Microsoft authentication successful! Refreshing...")
