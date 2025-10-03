@@ -92,8 +92,7 @@ class ExcelUserManager:
             result = app.acquire_token_by_authorization_code(
                 code=code,
                 scopes=self.scopes,
-                redirect_uri=redirect_uri,
-                state=None
+                redirect_uri=redirect_uri
             )
             
             if "access_token" in result:
