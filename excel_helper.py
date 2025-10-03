@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
+import msal
 
 class ExcelUserManager:
     def __init__(self):
@@ -22,47 +23,31 @@ class ExcelUserManager:
         self.site_id = "shermes99-my.sharepoint.com"  # SharePoint site
         
     def get_access_token(self) -> Optional[str]:
-        """Get access token from session state or initiate OAuth flow"""
+        """Get access token using MSAL"""
         try:
-            # Check if we have stored credentials
-            if 'microsoft_credentials' in st.session_state and st.session_state.microsoft_credentials:
-                creds = st.session_state.microsoft_credentials
-                
-                # Check if token is still valid
-                if creds.get('expires_at', 0) > datetime.now().timestamp():
-                    return creds['access_token']
-                
-                # Try to refresh token
-                if 'refresh_token' in creds:
-                    return self._refresh_token(creds['refresh_token'])
-            
-            # Handle OAuth callback
-            qp = st.query_params
-            code = qp.get("code", [None])[0]
-            
-            if code:
-                return self._exchange_code_for_token(code)
-            
-            # Start OAuth flow
-            self._start_oauth_flow()
-            return None
-            
-        except Exception as e:
-            st.error(f"Authentication error: {e}")
-            return None
-    
-    def _start_oauth_flow(self):
-        """Start Microsoft OAuth flow"""
-        try:
+            # Get credentials from Streamlit secrets
             client_id = st.secrets["MICROSOFT_CLIENT_ID"]
-            redirect_uri = st.secrets["MICROSOFT_REDIRECT_URI"]
+            client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
+            tenant_id = "common"  # Use common for multi-tenant
             
-            auth_url = (
-                f"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?"
-                f"client_id={client_id}&"
-                f"response_type=code&"
-                f"redirect_uri={redirect_uri}&"
-                f"scope={' '.join(self.scopes)}"
+            # Create MSAL app
+            app = msal.ConfidentialClientApplication(
+                client_id=client_id,
+                client_credential=client_secret,
+                authority=f"https://login.microsoftonline.com/{tenant_id}"
+            )
+            
+            # Try to get token silently first
+            accounts = app.get_accounts()
+            if accounts:
+                result = app.acquire_token_silent(self.scopes, account=accounts[0])
+                if result and "access_token" in result:
+                    return result["access_token"]
+            
+            # If silent auth fails, start interactive flow
+            auth_url = app.get_authorization_request_url(
+                scopes=self.scopes,
+                redirect_uri=st.secrets["MICROSOFT_REDIRECT_URI"]
             )
             
             st.markdown(f"""
@@ -75,88 +60,65 @@ class ExcelUserManager:
             After authentication, you'll be redirected back to this app.
             """)
             
+            return None
+            
         except Exception as e:
-            st.error(f"OAuth setup error: {e}")
+            st.error(f"Authentication error: {e}")
+            return None
     
-    def _exchange_code_for_token(self, code: str) -> Optional[str]:
-        """Exchange authorization code for access token"""
+    def handle_oauth_callback(self) -> Optional[str]:
+        """Handle OAuth callback and exchange code for token"""
         try:
+            # Check for authorization code in query params
+            qp = st.query_params
+            code = qp.get("code", [None])[0]
+            
+            if not code:
+                return None
+            
+            # Get credentials
             client_id = st.secrets["MICROSOFT_CLIENT_ID"]
             client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
             redirect_uri = st.secrets["MICROSOFT_REDIRECT_URI"]
             
-            token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+            # Create MSAL app
+            app = msal.ConfidentialClientApplication(
+                client_id=client_id,
+                client_credential=client_secret,
+                authority="https://login.microsoftonline.com/common"
+            )
             
-            data = {
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'code': code,
-                'redirect_uri': redirect_uri,
-                'grant_type': 'authorization_code',
-                'scope': ' '.join(self.scopes)
-            }
+            # Exchange code for token
+            result = app.acquire_token_by_authorization_code(
+                code=code,
+                scopes=self.scopes,
+                redirect_uri=redirect_uri
+            )
             
-            response = requests.post(token_url, data=data)
-            response.raise_for_status()
-            
-            token_data = response.json()
-            
-            # Store credentials in session state
-            st.session_state.microsoft_credentials = {
-                'access_token': token_data['access_token'],
-                'refresh_token': token_data.get('refresh_token'),
-                'expires_at': datetime.now().timestamp() + token_data.get('expires_in', 3600)
-            }
-            
-            # Clear query params
-            st.query_params.clear()
-            st.success("✅ Microsoft authentication successful! Refreshing...")
-            st.rerun()
-            
-            return token_data['access_token']
-            
+            if "access_token" in result:
+                # Clear query params
+                st.query_params.clear()
+                st.success("✅ Microsoft authentication successful! Refreshing...")
+                st.rerun()
+                return result["access_token"]
+            else:
+                st.error(f"Authentication failed: {result.get('error_description', 'Unknown error')}")
+                return None
+                
         except Exception as e:
-            st.error(f"Token exchange failed: {e}")
-            return None
-    
-    def _refresh_token(self, refresh_token: str) -> Optional[str]:
-        """Refresh access token using refresh token"""
-        try:
-            client_id = st.secrets["MICROSOFT_CLIENT_ID"]
-            client_secret = st.secrets["MICROSOFT_CLIENT_SECRET"]
-            
-            token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
-            
-            data = {
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'refresh_token': refresh_token,
-                'grant_type': 'refresh_token',
-                'scope': ' '.join(self.scopes)
-            }
-            
-            response = requests.post(token_url, data=data)
-            response.raise_for_status()
-            
-            token_data = response.json()
-            
-            # Update stored credentials
-            st.session_state.microsoft_credentials = {
-                'access_token': token_data['access_token'],
-                'refresh_token': token_data.get('refresh_token', refresh_token),
-                'expires_at': datetime.now().timestamp() + token_data.get('expires_in', 3600)
-            }
-            
-            return token_data['access_token']
-            
-        except Exception as e:
-            st.error(f"Token refresh failed: {e}")
+            st.error(f"Callback handling failed: {e}")
             return None
     
     def get_all_users(self) -> Dict[str, Dict]:
         """Get all users from Excel file"""
         try:
-            access_token = self.get_access_token()
+            # First check for OAuth callback
+            callback_token = self.handle_oauth_callback()
+            if callback_token:
+                access_token = callback_token
+            else:
+                access_token = self.get_access_token()
+            
             if not access_token:
                 return {}
             
