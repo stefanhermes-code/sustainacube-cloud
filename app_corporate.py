@@ -788,9 +788,5 @@ def main():
                 st.session_state.auto_run = True
                 st.rerun()
 
-        # Copyable text list
-        st.markdown("### 📋 Copyable Samples")
-        st.code("\n".join(f"- {q}" for q in sample_questions))
-
 if __name__ == "__main__":
     main()
