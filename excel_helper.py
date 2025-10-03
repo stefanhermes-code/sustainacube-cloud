@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import pandas as pd
 import msal
+import base64
 
 class ExcelUserManager:
     def __init__(self):
@@ -20,13 +21,35 @@ class ExcelUserManager:
         self.client_id = st.secrets.get("MICROSOFT_CLIENT_ID")
         self.client_secret = st.secrets.get("MICROSOFT_CLIENT_SECRET")
         self.owner_upn = st.secrets.get("OWNER_UPN", "")
-        self.excel_file_id = st.secrets.get("EXCEL_FILE_ID", "EevgKjGcPZlPg73_n4aihb4BWl3xYHy_YvU-o-75-KBADA")
+        self.excel_sharing_url = st.secrets.get("EXCEL_SHARING_URL", "")
         self.worksheet_name = st.secrets.get("EXCEL_WORKSHEET", "Users")
+        
+    def _b64url(self, s: str) -> str:
+        return base64.urlsafe_b64encode(s.encode("utf-8")).decode("ascii").rstrip("=")
+
+    def _resolve_drive_item(self, access_token: str) -> Optional[Dict[str, str]]:
+        """Resolve driveId and itemId from EXCEL_SHARING_URL via Graph Shares API."""
+        if not self.excel_sharing_url:
+            st.error("EXCEL_SHARING_URL missing in secrets.")
+            return None
+        encoded = self._b64url(self.excel_sharing_url)
+        url = f"{self.graph_base_url}/shares/u!{encoded}/driveItem"
+        headers = { 'Authorization': f'Bearer {access_token}' }
+        r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            st.error(f"Failed to resolve sharing link: {r.status_code} - {r.text}")
+            return None
+        data = r.json()
+        drive_id = data.get('parentReference', {}).get('driveId')
+        item_id = data.get('id')
+        if not drive_id or not item_id:
+            st.error("Could not extract driveId/itemId from sharing link response.")
+            return None
+        return { 'driveId': drive_id, 'itemId': item_id }
         
     def get_access_token(self) -> Optional[str]:
         """Get access token using MSAL (app-only, client credentials)"""
         try:
-            # Check if we have a valid token in session state
             if 'microsoft_access_token' in st.session_state:
                 token = st.session_state.microsoft_access_token
                 if token:
@@ -52,23 +75,22 @@ class ExcelUserManager:
         return None
 
     def get_all_users(self) -> Dict[str, Dict]:
-        """Get all users from the OneDrive file via users endpoint"""
+        """Get all users from the Excel file via sharing link resolution."""
         try:
             access_token = self.get_access_token()
             if not access_token:
                 return {}
-            if not self.owner_upn:
-                st.error("OWNER_UPN is missing in secrets.")
+            resolved = self._resolve_drive_item(access_token)
+            if not resolved:
                 return {}
+            drive_id = resolved['driveId']
+            item_id = resolved['itemId']
 
             url = (
-                f"{self.graph_base_url}/users/{self.owner_upn}/drive/items/"
-                f"{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/usedRange"
+                f"{self.graph_base_url}/drives/{drive_id}/items/{item_id}/"
+                f"workbook/worksheets/{self.worksheet_name}/usedRange"
             )
-            headers = {
-                'Authorization': f'Bearer {access_token}',
-                'Content-Type': 'application/json'
-            }
+            headers = { 'Authorization': f'Bearer {access_token}' }
             response = requests.get(url, headers=headers)
             response.raise_for_status()
             data = response.json()
@@ -94,18 +116,20 @@ class ExcelUserManager:
             return {}
 
     def add_user(self, email: str, password: str, valid_until: str) -> bool:
-        """Add a new user row to the OneDrive Excel file"""
+        """Add a new user row to the Excel file (table must exist)."""
         try:
             access_token = self.get_access_token()
             if not access_token:
                 return False
-            if not self.owner_upn:
-                st.error("OWNER_UPN is missing in secrets.")
+            resolved = self._resolve_drive_item(access_token)
+            if not resolved:
                 return False
+            drive_id = resolved['driveId']
+            item_id = resolved['itemId']
 
             url = (
-                f"{self.graph_base_url}/users/{self.owner_upn}/drive/items/"
-                f"{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/tables/UsersTable/rows/add"
+                f"{self.graph_base_url}/drives/{drive_id}/items/{item_id}/"
+                f"workbook/worksheets/{self.worksheet_name}/tables/UsersTable/rows/add"
             )
             headers = {
                 'Authorization': f'Bearer {access_token}',
@@ -121,7 +145,7 @@ class ExcelUserManager:
                 '',
                 0.0
             ]
-            data = {'values': [new_row]}
+            data = { 'values': [new_row] }
             response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
             return True
