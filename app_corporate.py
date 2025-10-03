@@ -791,11 +791,6 @@ def main():
         # Copyable text list
         st.markdown("### 📋 Copyable Samples")
         st.code("\n".join(f"- {q}" for q in sample_questions))
-    
-    # Logout button
-    if st.button("🚪 Logout"):
-        st.session_state.authenticated = False
-        st.rerun()
 
 if __name__ == "__main__":
     main()
