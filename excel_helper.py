@@ -43,9 +43,6 @@ class ExcelUserManager:
             # Acquire token for client credentials flow
             result = app.acquire_token_for_client(scopes=self.scopes)
             
-            # Debug: show the full result
-            st.write("MSAL Token Result:", result)
-            
             if "access_token" in result:
                 # Store token in session state
                 st.session_state.microsoft_access_token = result["access_token"]
@@ -69,8 +66,20 @@ class ExcelUserManager:
             if not access_token:
                 return {}
             
-            # Read Excel file from SharePoint
-            url = f"{self.graph_base_url}/sites/{self.site_host}/drive/items/{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/usedRange"
+            # First, resolve the site ID from the hostname
+            site_url = f"{self.graph_base_url}/sites/{self.site_host}:/"
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            site_response = requests.get(site_url, headers=headers)
+            site_response.raise_for_status()
+            site_data = site_response.json()
+            site_id = site_data['id']
+            
+            # Now use the site ID to access the workbook
+            url = f"{self.graph_base_url}/sites/{site_id}/drive/items/{self.excel_file_id}/workbook/worksheets/{self.worksheet_name}/usedRange"
             
             headers = {
                 'Authorization': f'Bearer {access_token}',
