@@ -528,6 +528,18 @@ def main():
 
     st.markdown("Ask questions about sustainability, recycling, and environmental research in the Polyurethane Industry.")
     
+    # User Manual section
+    with st.expander("📖 Open User Manual"):
+        try:
+            from pathlib import Path
+            manual_path = Path(__file__).parent / "USER_MANUAL_CORPORATE.md"
+            if manual_path.exists():
+                st.markdown(manual_path.read_text(encoding="utf-8"))
+            else:
+                st.info("User manual not found. See `USER_MANUAL_CORPORATE.md` in the repository.")
+        except Exception as _e:
+            st.info("User manual could not be displayed.")
+    
     # Initialize RAG system
     if 'rag_system' not in st.session_state:
         st.session_state.rag_system = SustainaCubeMinimal()
