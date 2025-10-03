@@ -37,7 +37,7 @@ class ExcelUserManager:
                     return self._refresh_token(creds['refresh_token'])
             
             # Handle OAuth callback
-            qp = st.experimental_get_query_params()
+            qp = st.query_params
             code = qp.get("code", [None])[0]
             
             if code:
@@ -110,7 +110,7 @@ class ExcelUserManager:
             }
             
             # Clear query params
-            st.experimental_set_query_params()
+            st.query_params.clear()
             st.success("✅ Microsoft authentication successful! Refreshing...")
             st.rerun()
             
