@@ -14,7 +14,7 @@ class ExcelUserManager:
     def __init__(self):
         # Microsoft Graph API configuration
         self.graph_base_url = "https://graph.microsoft.com/v1.0"
-        self.scopes = ["https://graph.microsoft.com/Files.ReadWrite", "https://graph.microsoft.com/User.Read"]
+        self.scopes = ["https://graph.microsoft.com/Files.ReadWrite"]
         
         # Excel file configuration - you'll need to update these
         self.excel_file_id = "EevgKjGcPZlPg73_n4aihb4BWl3xYHy_YvU-o-75-KBADA"  # SharePoint file ID
@@ -62,8 +62,7 @@ class ExcelUserManager:
                 f"client_id={client_id}&"
                 f"response_type=code&"
                 f"redirect_uri={redirect_uri}&"
-                f"scope={' '.join(self.scopes)}&"
-                f"response_mode=query"
+                f"scope={' '.join(self.scopes)}"
             )
             
             st.markdown(f"""
