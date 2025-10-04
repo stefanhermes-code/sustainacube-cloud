@@ -608,27 +608,7 @@ def main():
             with st.spinner("Searching knowledge base and generating answer..."):
                 answer, sources = st.session_state.rag_system.answer_question(q)
             
-            # Track usage for corporate users
-            if 'current_user' in st.session_state and st.session_state.current_user:
-                user_id = st.session_state.current_user.lower()
-                
-                # Import Excel helper
-                from excel_helper import user_manager
-                
-                # Get current usage from Excel
-                users = user_manager.get_all_users()
-                if user_id in users:
-                    current_questions = users[user_id]['questions_asked'] + 1
-                    current_cost = users[user_id]['total_cost'] + 0.10  # $0.10 per question
-                    last_used = datetime.now().strftime('%d/%m/%Y %H:%M')
-                    
-                    # Update usage in Excel
-                    user_manager.update_user_usage(
-                        user_id, 
-                        questions_asked=current_questions,
-                        last_used=last_used,
-                        total_cost=current_cost
-                    )
+            # Usage tracking removed - using CSV authentication only
             
             st.markdown("### 📋 Answer")
             st.markdown(answer)

@@ -729,12 +729,8 @@ def main():
         st.session_state.rag_system = SustainaCubeMinimal()
     
     # User identification and lock management
-    st.session_state.user_name = st.selectbox(
-        "👤 Select your name:", 
-        options=["Stefan Hermes", "Bart ten Brink"],
-        index=0 if st.session_state.get('user_name') != "Bart ten Brink" else 1,
-        key="user_name_select"
-    )
+    if 'user_name' not in st.session_state:
+        st.session_state.user_name = "Stefan Hermes"
     
     # Check who's processing documents (not just using the app)
     current_user = st.session_state.user_name
@@ -872,62 +868,62 @@ def main():
         st.markdown("---")
         # User Management removed for internal app
 
-        # Main interface
-        col1, col2 = st.columns([1, 1])
+    # Main interface (moved outside sidebar)
+    col1, col2 = st.columns([1, 1])
 
-        with col1:
-            st.header("💬 Ask a Question")
+    with col1:
+        st.header("💬 Ask a Question")
 
-            # Manage question state
-            if 'question_input' not in st.session_state:
-                st.session_state.question_input = ""
-            if 'auto_run' not in st.session_state:
-                st.session_state.auto_run = False
+        # Manage question state
+        if 'question_input' not in st.session_state:
+            st.session_state.question_input = ""
+        if 'auto_run' not in st.session_state:
+            st.session_state.auto_run = False
 
-            # Question input
-            question = st.text_area(
-                "Enter your sustainability question:",
-                value=st.session_state.question_input,
-                placeholder="e.g., What are the CO2 savings from PU foam recycling in Thailand?",
-                height=100
-            )
-            st.session_state.question_input = question
+        # Question input
+        question = st.text_area(
+            "Enter your sustainability question:",
+            value=st.session_state.question_input,
+            placeholder="e.g., What are the CO2 savings from PU foam recycling in Thailand?",
+            height=100
+        )
+        st.session_state.question_input = question
 
-            def run_query(q: str):
-                with st.spinner("Searching knowledge base and generating answer..."):
-                    answer, sources = st.session_state.rag_system.answer_question(q)
+        def run_query(q: str):
+            with st.spinner("Searching knowledge base and generating answer..."):
+                answer, sources = st.session_state.rag_system.answer_question(q)
 
-                st.markdown("### 📋 Answer")
-                st.markdown(answer)
+            st.markdown("### 📋 Answer")
+            st.markdown(answer)
 
-                # Convert markdown to HTML and provide professional styling
-                import re
-                import time
+            # Convert markdown to HTML and provide professional styling
+            import re
+            import time
 
-                html_answer = answer
-                html_answer = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_answer, flags=re.MULTILINE)
-                html_answer = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html_answer, flags=re.MULTILINE)
-                html_answer = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_answer, flags=re.MULTILINE)
-                html_answer = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_answer, flags=re.MULTILINE)
-                html_answer = re.sub(r'【[^】]+】', '', html_answer)
-                html_answer = re.sub(r'<h3>Source References</h3>.*?(?=<h3>|$)', '', html_answer, flags=re.DOTALL)
-                html_answer = re.sub(r'^- (.+)$', r'<li>\1</li>', html_answer, flags=re.MULTILINE)
-                html_answer = re.sub(r'(<li>.*</li>)(?:\s*<li>.*</li>)*', lambda m: f'<ul>{m.group(0)}</ul>', html_answer, flags=re.DOTALL)
-                html_answer = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_answer)
-                html_answer = html_answer.replace('\n', '<br>')
+            html_answer = answer
+            html_answer = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'【[^】]+】', '', html_answer)
+            html_answer = re.sub(r'<h3>Source References</h3>.*?(?=<h3>|$)', '', html_answer, flags=re.DOTALL)
+            html_answer = re.sub(r'^- (.+)$', r'<li>\1</li>', html_answer, flags=re.MULTILINE)
+            html_answer = re.sub(r'(<li>.*</li>)(?:\s*<li>.*</li>)*', lambda m: f'<ul>{m.group(0)}</ul>', html_answer, flags=re.DOTALL)
+            html_answer = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_answer)
+            html_answer = html_answer.replace('\n', '<br>')
 
-                source_refs = []
-                if sources:
-                    for source in sources:
-                        src_name = source.get('filename') if isinstance(source, dict) else str(source)
-                        score = source.get('similarity_score') if isinstance(source, dict) else None
-                        if isinstance(score, (int, float)):
-                            source_refs.append(f'<li>{src_name} (Relevance: {score:.3f})</li>')
-                        else:
-                            source_refs.append(f'<li>{src_name}</li>')
-                source_list = f'<ul>{"".join(source_refs)}</ul>' if source_refs else '<p><em>No specific sources referenced.</em></p>'
+            source_refs = []
+            if sources:
+                for source in sources:
+                    src_name = source.get('filename') if isinstance(source, dict) else str(source)
+                    score = source.get('similarity_score') if isinstance(source, dict) else None
+                    if isinstance(score, (int, float)):
+                        source_refs.append(f'<li>{src_name} (Relevance: {score:.3f})</li>')
+                    else:
+                        source_refs.append(f'<li>{src_name}</li>')
+            source_list = f'<ul>{"".join(source_refs)}</ul>' if source_refs else '<p><em>No specific sources referenced.</em></p>'
 
-                html_content = f"""
+            html_content = f"""
 <!doctype html>
 <html>
 <head>
@@ -961,45 +957,45 @@ def main():
 </body>
 </html>
 """
-                st.download_button(
-                    label="Copy Answer (HTML)",
-                    data=html_content,
-                    file_name="sustainacube_answer.html",
-                    mime="text/html",
-                    key="download_html"
-                )
-                st.download_button(
-                    label="Copy Answer (Text)",
-                    data=answer,
-                    file_name="sustainacube_answer.txt",
-                    mime="text/plain",
-                    key="download_text"
-                )
+            st.download_button(
+                label="Copy Answer (HTML)",
+                data=html_content,
+                file_name="sustainacube_answer.html",
+                mime="text/html",
+                key="download_html"
+            )
+            st.download_button(
+                label="Copy Answer (Text)",
+                data=answer,
+                file_name="sustainacube_answer.txt",
+                mime="text/plain",
+                key="download_text"
+            )
 
-            if st.button("🔍 Get Answer", type="primary"):
-                if question.strip():
-                    run_query(question)
-                else:
-                    st.warning("Please enter a question.")
+        if st.button("🔍 Get Answer", type="primary"):
+            if question.strip():
+                run_query(question)
+            else:
+                st.warning("Please enter a question.")
 
-            if st.session_state.auto_run and st.session_state.question_input.strip():
-                run_query(st.session_state.question_input)
-                st.session_state.auto_run = False
+        if st.session_state.auto_run and st.session_state.question_input.strip():
+            run_query(st.session_state.question_input)
+            st.session_state.auto_run = False
 
-        with col2:
-            st.markdown("### 💡 Sample Questions")
-            sample_questions = [
-                "What are the environmental benefits of PU foam recycling?",
-                "Compare EPR frameworks across different countries",
-                "What are the latest chemical recycling methods?",
-                "How much CO2 can be saved through mattress recycling?",
-                "What are the economic benefits of circular economy?"
-            ]
-            for q in sample_questions:
-                if st.button(q, key=f"sample_btn_{q}"):
-                    st.session_state.question_input = q
-                    st.session_state.auto_run = True
-                    st.rerun()
+    with col2:
+        st.markdown("### 💡 Sample Questions")
+        sample_questions = [
+            "What are the environmental benefits of PU foam recycling?",
+            "Compare EPR frameworks across different countries",
+            "What are the latest chemical recycling methods?",
+            "How much CO2 can be saved through mattress recycling?",
+            "What are the economic benefits of circular economy?"
+        ]
+        for q in sample_questions:
+            if st.button(q, key=f"sample_btn_{q}"):
+                st.session_state.question_input = q
+                st.session_state.auto_run = True
+                st.rerun()
 
 if __name__ == "__main__":
     main()
