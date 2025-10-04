@@ -501,7 +501,7 @@ def check_password():
 
         if st.button("Login"):
             if email and password:
-                user_id = email.lower()
+                user_id = email.lower().strip()
                 if user_id in users:
                     user = users[user_id]
                     if user.get('status', 'Active').lower() != 'active':
