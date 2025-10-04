@@ -453,8 +453,15 @@ def check_password():
 
     # Load users from local CSV (prefer 'Corporate Users.csv', fallback to 'corporate_users.csv')
     import csv
+    from pathlib import Path
     users: Dict[str, Dict] = {}
-    csv_paths = ["Corporate Users.csv", "corporate_users.csv"]
+    base_dir = Path(__file__).parent
+    csv_paths = [
+        base_dir / "Corporate Users.csv",
+        base_dir / "corporate_users.csv",
+        Path("Corporate Users.csv"),
+        Path("corporate_users.csv"),
+    ]
     csv_loaded = False
     for csv_path in csv_paths:
         try:
@@ -474,7 +481,7 @@ def check_password():
         except FileNotFoundError:
             continue
     if not csv_loaded:
-        st.error("Corporate Users.csv not found. Please upload the CSV and redeploy.")
+        st.error("Corporate Users.csv not found. Place it next to app_corporate.py or at repo root and redeploy.")
         return False
 
     if not st.session_state.authenticated:
