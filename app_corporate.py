@@ -624,11 +624,12 @@ def main():
             html_answer = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_answer, flags=re.MULTILINE)
             html_answer = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_answer, flags=re.MULTILINE)
             
-            # Remove source references from text (keep only the clean content)
+            # Remove all source references from text for corporate version
             html_answer = re.sub(r'【[^】]+】', '', html_answer)
-            
-            # Remove "Source References" section from content since we have a separate sources section
             html_answer = re.sub(r'<h3>Source References</h3>.*?(?=<h3>|$)', '', html_answer, flags=re.DOTALL)
+            html_answer = re.sub(r'Source References.*?(?=<h[1-6]|$)', '', html_answer, flags=re.DOTALL | re.IGNORECASE)
+            html_answer = re.sub(r'References:.*?(?=<h[1-6]|$)', '', html_answer, flags=re.DOTALL | re.IGNORECASE)
+            html_answer = re.sub(r'\[.*?\.(?:pdf|docx?|txt|pptx?|xlsx?|html?|md|csv)\]', '', html_answer, flags=re.IGNORECASE)
             
             # Convert bullet points
             html_answer = re.sub(r'^- (.+)$', r'<li>\1</li>', html_answer, flags=re.MULTILINE)
@@ -641,131 +642,156 @@ def main():
             # Convert line breaks
             html_answer = html_answer.replace('\n', '<br>')
             
-            # Extract and format source references for the bottom
-            source_refs = []
-            if sources:
-                for source in sources:
-                    src_name = source.get('filename') if isinstance(source, dict) else str(source)
-                    score = source.get('similarity_score') if isinstance(source, dict) else None
-                    if isinstance(score, (int, float)):
-                        source_refs.append(f'<li>{src_name} (Relevance: {score:.3f})</li>')
-                    else:
-                        source_refs.append(f'<li>{src_name}</li>')
-            source_list = f'<ul>{"".join(source_refs)}</ul>' if source_refs else '<p><em>No specific sources referenced.</em></p>'
+            # No source references for corporate version
             
             html_content = f"""
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset=\"utf-8\" />
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SustainaCube - Corporate Response</title>
   <style>
-    body {{ 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
-      line-height: 1.7; 
-      color: #2c3e50; 
-      margin: 0; 
-      padding: 40px; 
-      background: #f8f9fa;
+    @page {{
+      margin: 2cm;
+      size: A4;
+    }}
+    body {{
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.5;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      background: white;
     }}
     .container {{
-      max-width: 800px; 
-      margin: 0 auto; 
-      background: white; 
-      padding: 40px; 
-      border-radius: 8px; 
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }}
-    h1 {{ 
-      color: #2c3e50; 
-      font-size: 28px; 
-      font-weight: 700; 
-      margin: 0 0 20px 0; 
-      border-bottom: 3px solid #3498db; 
-      padding-bottom: 10px;
-    }}
-    h2 {{ 
-      color: #34495e; 
-      font-size: 22px; 
-      font-weight: 600; 
-      margin: 30px 0 15px 0; 
-      border-left: 4px solid #3498db; 
-      padding-left: 15px;
-    }}
-    h3 {{ 
-      color: #34495e; 
-      font-size: 18px; 
-      font-weight: 600; 
-      margin: 25px 0 12px 0;
-    }}
-    h4 {{ 
-      color: #34495e; 
-      font-size: 16px; 
-      font-weight: 600; 
-      margin: 20px 0 10px 0;
-    }}
-    ul {{ 
-      margin: 15px 0; 
-      padding-left: 20px;
-    }}
-    li {{ 
-      margin: 8px 0; 
-      line-height: 1.6;
-    }}
-    p {{ 
-      margin: 15px 0; 
-      line-height: 1.7;
-    }}
-    strong {{ 
-      color: #2c3e50; 
-      font-weight: 600;
+      max-width: 21cm;
+      margin: 0 auto;
+      padding: 2cm;
+      background: white;
     }}
     .header {{
-      text-align: center; 
-      margin-bottom: 30px; 
-      padding-bottom: 20px; 
-      border-bottom: 2px solid #ecf0f1;
+      border-bottom: 3px solid #2c5aa0;
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }}
-    .header h1 {{ 
-      border: none; 
-      margin: 0; 
-      color: #2c3e50;
+    .logo-section {{
+      display: flex;
+      align-items: center;
     }}
-    .timestamp {{
-      color: #7f8c8d; 
-      font-size: 14px; 
-      margin-top: 10px;
+    .logo-text {{
+      font-size: 28px;
+      font-weight: bold;
+      color: #2c5aa0;
+      margin-left: 15px;
     }}
     .question-section {{
-      background: #f8f9fa; 
-      padding: 20px; 
-      border-radius: 6px; 
-      margin: 20px 0; 
-      border-left: 4px solid #3498db;
+      background: #f8f9fa;
+      padding: 15px;
+      border-left: 4px solid #2c5aa0;
+      margin-bottom: 25px;
+      border-radius: 0 4px 4px 0;
+    }}
+    .question-label {{
+      font-weight: bold;
+      color: #2c5aa0;
+      margin-bottom: 8px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }}
     .question-text {{
-      font-size: 16px; 
-      color: #2c3e50; 
-      font-weight: 500; 
-      margin: 10px 0 0 0; 
+      font-style: italic;
+      color: #555;
+      margin: 0;
+      line-height: 1.4;
+    }}
+    .content {{
+      font-size: 14px;
       line-height: 1.6;
     }}
-    /* Sources section CSS removed for corporate version */
+    .content h1 {{
+      color: #2c5aa0;
+      font-size: 24px;
+      margin: 25px 0 15px 0;
+      border-bottom: 2px solid #e9ecef;
+      padding-bottom: 8px;
+    }}
+    .content h2 {{
+      color: #2c5aa0;
+      font-size: 20px;
+      margin: 20px 0 12px 0;
+    }}
+    .content h3 {{
+      color: #2c5aa0;
+      font-size: 16px;
+      margin: 15px 0 10px 0;
+    }}
+    .content h4 {{
+      color: #2c5aa0;
+      font-size: 14px;
+      margin: 12px 0 8px 0;
+    }}
+    .content ul {{
+      margin: 10px 0;
+      padding-left: 20px;
+    }}
+    .content li {{
+      margin: 5px 0;
+    }}
+    .content strong {{
+      color: #2c5aa0;
+      font-weight: 600;
+    }}
+    .content p {{
+      margin: 10px 0;
+    }}
+    .footer {{
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #e9ecef;
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+    }}
+    .footer .branding {{
+      font-weight: bold;
+      color: #2c5aa0;
+      margin-bottom: 5px;
+    }}
+    .footer .disclaimer {{
+      font-style: italic;
+      margin-top: 10px;
+    }}
   </style>
-  <title>SustainaCube Expert Response</title>
 </head>
 <body>
-  <div class=\"container\">
-    <div class=\"header\">
-      <h1>🌱 SustainaCube Expert Response</h1>
-      <div class=\"timestamp\">Generated on {time.strftime('%B %d, %Y at %I:%M %p')}</div>
+  <div class="container">
+    <div class="header">
+      <div class="logo-section">
+        <div class="logo-text">SustainaCube</div>
+      </div>
+      <div style="font-size: 12px; color: #666; text-align: right;">
+        Corporate Version
+      </div>
     </div>
+    
     <div class="question-section">
-      <h2>❓ Question</h2>
-      <p class="question-text">{q}</p>
+      <div class="question-label">Question</div>
+      <div class="question-text">{q}</div>
     </div>
-    <div class=\"content\">{html_answer}</div>
-    <!-- Sources section removed for corporate version -->
+    
+    <div class="content">{html_answer}</div>
+    
+    <div class="footer">
+      <div class="branding">Carpe Diem / HTC Global</div>
+      <div>Generated on {datetime.now().strftime('%d %B %Y at %H:%M')}</div>
+      <div class="disclaimer">Answers provided by the PU ExpertCenter</div>
+      <div style="margin-top: 10px;">Copyright Carpe Diem/HTC Global, all rights reserved</div>
+    </div>
   </div>
 </body>
 </html>
