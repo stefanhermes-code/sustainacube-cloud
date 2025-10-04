@@ -549,11 +549,19 @@ def main():
         except:
             st.markdown("🌱")  # Fallback if logo not found
     with col2:
-        st.title("SustainaCube - Corporate Version")
+        st.title("SustainaCube: Sustainability ExpertCenter")
+        st.markdown("**Corporate Version**")
     
-    # Top bar: right-aligned logout button (no "logged in as" text)
+    # Top bar: right-aligned logout button with user info
     top_left, top_right = st.columns([6, 1])
     with top_right:
+        # User info above logout button
+        if 'current_user' in st.session_state and st.session_state.current_user:
+            current_time = datetime.now().strftime('%d/%m/%Y %H:%M')
+            st.markdown(f"**{st.session_state.current_user}**")
+            st.markdown(f"*Logged in: {current_time}*")
+            st.markdown("---")
+        
         if st.button("🚪 Logout", use_container_width=True):
             st.session_state.authenticated = False
             if 'current_user' in st.session_state:
